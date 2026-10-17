@@ -75,6 +75,8 @@ Generality (Windows, other browsers, multi-monitor) comes later and is out of sc
 ### Key design decisions (don't change without asking the humans)
 
 - **One continuous Live session per study session**, with frames streaming the whole time, so the model genuinely sees live changes.
+  Prepare one quiet connection at app boot and adopt it when the task is locked. Never capture or send
+  screen/mic input, play speech, or execute model tools while only warming up.
 - **The model doesn't decide *when* to talk; the app does.** The model responds to turns, not frames. The app sends tagged
   text turns (§6.4); the model reports status through a tool call silently and speaks only on `[NUDGE]`,
   when the student talks, or on `[USER_RETURNED]`.
@@ -217,7 +219,16 @@ says to constrain its spoken language with system instructions instead. Keep the
 
 ### 6.3 Session lifecycle and reconnection
 
-- **Connect** when the student starts a session (state `SETUP` → `FOCUSED`).
+- **Warm up at app boot**, without awaiting the handshake before opening the UI. The warm connection
+  has the companion's rules, an explicit pending-setup instruction, and no invented task/window.
+  Saving setup prepares the chosen input-transcription language, replacing an idle warm connection
+  if needed. Never change an active study session's configuration or open parallel Live connections.
+- **Adopt** the warm connection when the task is locked (`SETUP` → `FOCUSED`). Send the actual task,
+  duration, language, and window through silent `[CONTEXT_RESTORE]` before `[SESSION_START]`. The API
+  configuration cannot change on an open socket; language changes are prepared before locking.
+  Connection work runs in the background so capture, polling, and queued checks can start immediately.
+  Retry a degraded warmup on setup/start. End and Quit cancel pending connections and close the socket;
+  the next saved task prepares a fresh one. Ignore stale connection completions after End/restart.
 - **Store** the newest `sessionResumptionUpdate.newHandle` whenever `resumable` is true.
 - **On `goAway`** (sent before the server closes the connection, roughly every 10 minutes):
   reconnect immediately with the stored handle, buffering outgoing frames and turns until it's open.
@@ -242,7 +253,7 @@ about these tags in the system instruction.
 | `[USER_RETURNED]` + `[DOC_LINES]` | Student is back in the task window after a check-in | true | Call `pin_next_step`, then say one short sentence. |
 | `[ARRIVED]` | Guided return succeeded | (sent together with `USER_RETURNED`) | Same as above. |
 | `[SNOOZE_OVER]` | Snooze timer ends | false | Context only. |
-| `[CONTEXT_RESTORE]` | After a fresh reconnect | false | Context only. |
+| `[CONTEXT_RESTORE]` | Adopting a boot connection, or after a fresh reconnect | false | Replace session context silently. |
 
 The `[CHECK]` payload always includes the current window, because text is a much stronger signal than pixels alone:
 
@@ -358,7 +369,7 @@ to avoid interrupting it. Re-enable speech for audible app turns and gated stude
 
 | State | Behavior | Transitions |
 |---|---|---|
-| `SETUP` | The student enters the task and duration (form or `set_task`). "Lock task window": a 3-second countdown captures the active window. | Locked → `FOCUSED` (connect, send `[SESSION_START]`) |
+| `SETUP` | The student enters the task and duration (form or `set_task`). Saving prepares the API/language; "Lock task window" starts a 3-second countdown. | Locked → `FOCUSED` (adopt warm connection, start capture, send `[SESSION_START]`) |
 | `FOCUSED` | Frames stream. Every `tickMs` (and on each window change): if the rules say `ask`, send `[CHECK]`. | Off-task verdict → `DRIFTING` (start the timer) |
 | `DRIFTING` | Timer accumulates. | Back on-task → `FOCUSED` (reset timer). Timer ≥ `graceMs` and the nudge rate limit allows → `NUDGING` |
 | `NUDGING` | Send `[NUDGE]`. Show the overlay nudge card. Open the mic. | → `CHECKIN` |

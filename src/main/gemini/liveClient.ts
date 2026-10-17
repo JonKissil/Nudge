@@ -3,6 +3,7 @@ import {
 } from '@google/genai'
 import type { LiveConnectConfig, LiveServerMessage, Part, Session } from '@google/genai'
 import { DEFAULTS } from '../../shared/config'
+import type { LanguageCode } from '../../shared/languages'
 import { buildLiveConfig } from './config'
 import { contextRestoreTurn } from './prompts'
 import { TOOL_DECLARATIONS } from './tools'
@@ -33,6 +34,9 @@ export class GeminiLiveClient implements LiveClient {
   private activeCheckId?: string
   private checkingSilently = false
   private checkTimer?: ReturnType<typeof setTimeout>
+  private warmLanguage?: LanguageCode
+  private connecting?: Promise<void>
+  private connectionState: 'connected' | 'reconnecting' | 'degraded' | 'disconnected' = 'disconnected'
 
   constructor(private readonly apiKey = process.env.GEMINI_API_KEY) {}
 
@@ -55,7 +59,41 @@ export class GeminiLiveClient implements LiveClient {
   }
 
   async connect(context: LiveSessionContext): Promise<void> {
+    if (this.active && !this.context && this.warmLanguage === context.language && this.connectionState !== 'degraded') {
+      this.context = context
+      // Supply task details to the already-open, generic study-companion session without generating speech.
+      this.sendTurn(contextRestoreTurn(context, context.state ?? 'FOCUSED'))
+      await this.connecting
+      return
+    }
+    if (this.active && !this.context) {
+      const closing = this.disconnect()
+      const lifecycleId = this.lifecycleId
+      await closing
+      if (lifecycleId !== this.lifecycleId) return
+    }
     if (this.active) throw new Error('A Live session is already active')
+    await this.establish(context)
+  }
+
+  async warmup(language: LanguageCode = 'en'): Promise<void> {
+    if (this.active && this.context) return
+    if (this.active && this.warmLanguage === language && this.connectionState !== 'degraded') {
+      await this.connecting
+      return
+    }
+    if (this.active) {
+      const closing = this.disconnect()
+      const lifecycleId = this.lifecycleId
+      await closing
+      if (lifecycleId !== this.lifecycleId) return
+    }
+    this.warmLanguage = language
+    this.connecting = this.establish()
+    await this.connecting
+  }
+
+  private async establish(context?: LiveSessionContext): Promise<void> {
     const lifecycleId = ++this.lifecycleId
     this.context = context
     this.active = true
@@ -81,6 +119,8 @@ export class GeminiLiveClient implements LiveClient {
     this.session?.close()
     this.session = undefined
     this.context = undefined
+    this.warmLanguage = undefined
+    this.connecting = undefined
     this.handle = undefined
     this.turns.length = 0
     this.responses.length = 0
@@ -143,6 +183,7 @@ export class GeminiLiveClient implements LiveClient {
   }
 
   private emit(event: LiveEvent): void {
+    if (event.type === 'connection') this.connectionState = event.state
     for (const listener of this.listeners) listener(event)
   }
 
@@ -153,10 +194,10 @@ export class GeminiLiveClient implements LiveClient {
   private async open(handle: string | undefined, lifecycleId: number): Promise<void> {
     const context = this.context
     const ai = this.ai
-    if (!context || !ai || !this.isCurrent(lifecycleId)) return
+    if (!ai || !this.isCurrent(lifecycleId)) return
     const id = ++this.connectionId
     const config: LiveConnectConfig = {
-      ...buildLiveConfig(context, handle),
+      ...buildLiveConfig(context, handle, context?.language ?? this.warmLanguage ?? 'en'),
       responseModalities: [Modality.AUDIO],
       mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
       tools: [{ functionDeclarations: TOOL_DECLARATIONS.map((declaration) => ({

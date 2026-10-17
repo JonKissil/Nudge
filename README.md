@@ -21,7 +21,10 @@ toggle demo timing while the app runs.
 
 In the control window, save a task, click **Start session**, and switch to its document in Safari,
 Chrome, another supported browser, or a document app before the three-second countdown ends.
-Nudge then starts its Live connection and screen capture.
+Nudge prepares a quiet Gemini Live connection when the app opens and reuses it after the task window
+is locked. Saving a different language prepares that configuration during setup. Screen capture and
+microphone forwarding remain gated by the study session; a slow API handshake does not block capture
+or drift polling from starting.
 **Pause session** and **End session** are available in the control window; the overlay offers one-click
 actions during a check-in. The microphone stays off except during a check-in or push-to-talk.
 

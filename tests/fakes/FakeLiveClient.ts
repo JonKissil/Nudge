@@ -1,10 +1,12 @@
 import type {
   LiveClient, LiveEvent, LiveSessionContext, LiveToolResponse, LiveTurn,
 } from '../../src/main/gemini/types'
+import type { LanguageCode } from '../../src/shared/languages'
 
 /** Scriptable transport for session tests. It has no network or timing of its own. */
 export class FakeLiveClient implements LiveClient {
   readonly connections: LiveSessionContext[] = []
+  readonly warmups: LanguageCode[] = []
   readonly turns: LiveTurn[] = []
   readonly frames: string[] = []
   readonly audioChunks: string[] = []
@@ -14,6 +16,11 @@ export class FakeLiveClient implements LiveClient {
   checkinActive = false
   context?: LiveSessionContext
   private readonly listeners = new Set<(event: LiveEvent) => void>()
+
+  async warmup(language: LanguageCode = 'en'): Promise<void> {
+    this.warmups.push(language)
+    this.emit({ type: 'connection', state: 'connected', resumed: false })
+  }
 
   async connect(context: LiveSessionContext): Promise<void> {
     this.connections.push(context)

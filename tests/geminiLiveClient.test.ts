@@ -11,6 +11,8 @@ const sdk = vi.hoisted(() => ({
   media: [] as unknown[],
   responses: [] as unknown[],
   closes: 0,
+  connectGate: undefined as Promise<void> | undefined,
+  failures: 0,
 }))
 
 vi.mock('@google/genai', () => ({
@@ -24,6 +26,8 @@ vi.mock('@google/genai', () => ({
       if (callbacks) sdk.callbacksList.push(callbacks)
       sdk.config = config
       sdk.configs.push(config)
+      if (sdk.failures > 0) { sdk.failures--; throw new Error('Offline') }
+      await sdk.connectGate
       return {
         sendClientContent: (turn: unknown) => sdk.turns.push(turn),
         sendRealtimeInput: (media: unknown) => sdk.media.push(media),
@@ -52,9 +56,92 @@ beforeEach(() => {
   sdk.media.length = 0
   sdk.responses.length = 0
   sdk.closes = 0
+  sdk.connectGate = undefined
+  sdk.failures = 0
 })
 
 describe('GeminiLiveClient transport', () => {
+  it('warms one silent connection and reuses it with the actual task at lock', async () => {
+    const client = new GeminiLiveClient('test-key')
+    await Promise.all([client.warmup(), client.warmup()])
+    expect(sdk.configs).toHaveLength(1)
+    expect(sdk.config).toHaveProperty('systemInstruction', expect.stringContaining('No study session has started'))
+    expect(sdk.turns).toEqual([])
+    expect(sdk.media).toEqual([])
+    await client.connect(context)
+    expect(sdk.configs).toHaveLength(1)
+    expect(sdk.turns).toMatchObject([{ turnComplete: false, turns: [{ parts: [{ text: expect.stringContaining('History essay') }] }] }])
+    client.sendTurn({ tag: 'SESSION_START', text: '[SESSION_START]', turnComplete: true })
+    expect(sdk.turns).toHaveLength(2)
+    await client.disconnect()
+  })
+
+  it('adopts a warmup still connecting and queues task context before the greeting', async () => {
+    const client = new GeminiLiveClient('test-key')
+    let ready!: () => void
+    sdk.connectGate = new Promise<void>((resolve) => { ready = resolve })
+    const warming = client.warmup()
+    const starting = client.connect(context)
+    client.sendTurn({ tag: 'SESSION_START', text: '[SESSION_START]', turnComplete: true })
+    expect(sdk.configs).toHaveLength(1)
+    expect(sdk.turns).toEqual([])
+    ready()
+    await Promise.all([warming, starting])
+    expect(sdk.turns).toMatchObject([
+      { turnComplete: false, turns: [{ parts: [{ text: expect.stringContaining('[CONTEXT_RESTORE]') }] }] },
+      { turnComplete: true, turns: [{ parts: [{ text: '[SESSION_START]' }] }] },
+    ])
+    await client.disconnect()
+  })
+
+  it('reconfigures a warm connection for the selected language before the study starts', async () => {
+    const client = new GeminiLiveClient('test-key')
+    await client.warmup()
+    await client.warmup('fr')
+    expect(sdk.closes).toBe(1)
+    expect(sdk.configs).toHaveLength(2)
+    expect(sdk.config).toMatchObject({ inputAudioTranscription: { languageCodes: ['fr'] } })
+    await client.connect({ ...context, language: 'fr' })
+    await client.warmup('ja')
+    expect(sdk.configs).toHaveLength(2)
+    expect(sdk.turns).toMatchObject([{ turns: [{ parts: [{ text: expect.stringContaining('French (fr)') }] }] }])
+    await client.disconnect()
+  })
+
+  it('retries a failed boot warmup when starting a study session', async () => {
+    vi.useFakeTimers()
+    const client = new GeminiLiveClient('test-key')
+    try {
+      sdk.failures = 6
+      const warming = client.warmup()
+      await vi.advanceTimersByTimeAsync(12_000)
+      await warming
+      expect(sdk.configs).toHaveLength(6)
+      await client.connect(context)
+      expect(sdk.configs).toHaveLength(7)
+      expect(sdk.config).toHaveProperty('systemInstruction', expect.stringContaining('History essay'))
+    } finally { await client.disconnect(); vi.useRealTimers() }
+  })
+
+  it('closes a late warm connection without reviving it in a newer session', async () => {
+    const client = new GeminiLiveClient('test-key')
+    let ready!: () => void
+    sdk.connectGate = new Promise<void>((resolve) => { ready = resolve })
+    const warming = client.warmup()
+    const oldCallbacks = sdk.callbacks!
+    await client.disconnect()
+    sdk.connectGate = undefined
+    await client.connect(context)
+    ready()
+    await warming
+    expect(sdk.closes).toBe(1)
+    const events: unknown[] = []
+    client.onEvent((event) => events.push(event))
+    oldCallbacks.onmessage({ serverContent: { outputTranscription: { text: 'Stale warmup speech' } } })
+    expect(events).toEqual([])
+    await client.disconnect()
+  })
+
   it('uses the verified Live config and maps media and tool scheduling', async () => {
     const client = new GeminiLiveClient('test-key')
     await client.connect(context)

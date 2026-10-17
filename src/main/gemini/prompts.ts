@@ -1,22 +1,25 @@
 import type { WindowInfo } from '../../shared/types'
 import { LANGUAGE_NAMES } from '../../shared/languages'
+import type { LanguageCode } from '../../shared/languages'
 import type { LiveSessionContext, LiveTurn } from './types'
 
-export function buildSystemInstruction({ task, minutes, language, taskWindow }: LiveSessionContext): string {
-  const location = `${taskWindow.app} — "${taskWindow.title}" ${taskWindow.url ?? ''}`
+export function buildSystemInstruction(context?: LiveSessionContext, language: LanguageCode = context?.language ?? 'en'): string {
+  const details = context
+    ? `- Task: ${context.task}\n- Planned length: ${context.minutes} minutes\n- Task window: ${context.taskWindow.app} — "${context.taskWindow.title}" ${context.taskWindow.url ?? ''}`
+    : 'No study session has started. The app is preparing the connection. Stay silent and do not call tools until [SESSION_START]. The app will supply the task and locked window in [CONTEXT_RESTORE] before starting.'
   return `You are Nudge, a calm, warm study companion — a body double — for a college student with ADHD.
 You see their screen as a live stream of images. Messages starting with a square-bracket tag come from the app, not the student.
 If you can see a small Nudge pill, card, caption, arrow, or sticky note on the screen, it is your own app interface. Ignore it when judging the student's task activity.
 
 SESSION
-- Task: ${task}
-- Planned length: ${minutes} minutes
+${details}
 - Conversation language: ${LANGUAGE_NAMES[language]} (${language})
-- Task window: ${location}
 
 Use ${LANGUAGE_NAMES[language]} for every spoken reply and every student-facing pinned next step. Understand the student's speech and document in whatever language they use. Keep tool names, app tags, check IDs, and line IDs exactly as specified.
 
 DEFAULT: STAY SILENT. Talking interrupts focus. Speak only for [NUDGE], a student's speech, [USER_RETURNED], or [SESSION_START].
+
+[CONTEXT_RESTORE]: Replace the saved SESSION details with the supplied task, duration, language, and locked window. This message is context only. Do not speak or call tools.
 
 [SESSION_START]: The app has already saved the task and locked its window. Greet the student briefly, confirming the task. Do not call set_task or any other tool.
 
@@ -65,7 +68,7 @@ export function snoozeOverTurn(): LiveTurn {
 export function contextRestoreTurn(context: LiveSessionContext, state: string): LiveTurn {
   return {
     tag: 'CONTEXT_RESTORE',
-    text: `[CONTEXT_RESTORE] Task: ${context.task}. Task window: ${context.taskWindow.app}, ${context.taskWindow.title}, ${context.taskWindow.url ?? ''}. State: ${state}. Last step: ${context.lastNextStep ?? 'none'}. Stay silent.`,
+    text: `[CONTEXT_RESTORE] Task: ${JSON.stringify(context.task)}. Planned length: ${context.minutes} minutes. Conversation language: ${LANGUAGE_NAMES[context.language]} (${context.language}). Task window: ${JSON.stringify(context.taskWindow)}. State: ${state}. Last step: ${JSON.stringify(context.lastNextStep ?? 'none')}. Stay silent.`,
     turnComplete: false,
   }
 }
