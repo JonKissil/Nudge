@@ -212,17 +212,20 @@ export function registerScaffoldIpc(
     caption: (text) => { caption = text; publish() },
     userSpeech: () => { void study.dispatch({ type: 'USER_SPEECH' }) },
     micSet: (open) => getWindows()?.media.webContents.send(IPC.micSet, { open }),
-    connection: (conn) => {
+    connection: (conn, restored) => {
       if (conn === 'disconnected') handleReceivedAt = undefined
       snapshot = { ...snapshot, conn }
       syncMic()
       log(`Live connection: ${conn}`)
+      if (conn === 'reconnecting' || conn === 'degraded' || restored) {
+        void study.dispatch({ type: 'CHECK_FAILED' })
+      }
       if (conn === 'degraded' && observed) {
         void study.dispatch({ type: 'WINDOW_OBSERVED', ...observed,
           verdict: effectiveVerdict(observed.verdict, conn) })
       }
     },
-    resumptionHandle: (receivedAt) => { handleReceivedAt = receivedAt; publish() },
+    resumptionHandle: (receivedAt) => { handleReceivedAt = receivedAt ?? undefined; publish() },
     error: () => log('Live connection error'),
   })
   const activateTaskWindow = async (window: WindowInfo): Promise<ActionResult> => {

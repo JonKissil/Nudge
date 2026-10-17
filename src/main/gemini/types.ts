@@ -29,12 +29,14 @@ export interface LiveToolResponse {
   name: string
   response: Record<string, unknown>
   scheduling: 'silent' | 'when-idle'
+  /** Identifies the server session that issued this call across socket resumptions. */
+  sessionEpoch?: number
 }
 
 export type LiveEvent =
-  | { type: 'connection'; state: 'connected' | 'reconnecting' | 'degraded' | 'disconnected'; resumed?: boolean }
-  | { type: 'resumption-handle'; receivedAt: number }
-  | { type: 'tool-call'; call: LiveToolCall }
+  | { type: 'connection'; state: 'connected' | 'reconnecting' | 'degraded' | 'disconnected'; resumed?: boolean; restored?: boolean }
+  | { type: 'resumption-handle'; receivedAt: number | null }
+  | { type: 'tool-call'; call: LiveToolCall; sessionEpoch?: number }
   | { type: 'audio'; pcm24Base64: string }
   | { type: 'transcription'; text: string }
   | { type: 'user-transcription'; text: string }

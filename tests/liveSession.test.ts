@@ -88,6 +88,22 @@ describe('LiveSessionBridge', () => {
     bridge.dispose()
   })
 
+  it('passes the issuing server session through an asynchronous tool reply', async () => {
+    const client = new FakeLiveClient()
+    const bridge = new LiveSessionBridge(client, handlers, {
+      playAudio: () => {}, flushAudio: () => {}, resetAudio: () => {},
+      caption: () => {}, userSpeech: () => {}, micSet: () => {},
+      connection: () => {}, resumptionHandle: () => {}, error: () => {},
+    })
+    await bridge.start(context)
+    client.emit({ type: 'tool-call', sessionEpoch: 7, call: { id: 'call-7', name: 'report_status', args: {
+      on_task: true, activity: 'Writing', confidence: 0.9,
+    } } })
+    await vi.waitFor(() => expect(client.toolResponses[0]?.sessionEpoch).toBe(7))
+    await bridge.stop()
+    bridge.dispose()
+  })
+
   it('waits for the old Live session to close before starting another', async () => {
     const client = new FakeLiveClient()
     let releaseDisconnect: (() => void) | undefined

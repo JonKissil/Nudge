@@ -8,8 +8,8 @@ export interface LiveSessionSinks {
   caption(text: string): void
   userSpeech(text: string): void
   micSet(open: boolean): void
-  connection(state: 'connected' | 'reconnecting' | 'degraded' | 'disconnected'): void
-  resumptionHandle(receivedAt: number): void
+  connection(state: 'connected' | 'reconnecting' | 'degraded' | 'disconnected', restored?: boolean): void
+  resumptionHandle(receivedAt: number | null): void
   error(message: string): void
 }
 
@@ -89,13 +89,15 @@ export class LiveSessionBridge {
           this.sinks.flushAudio()
           this.sinks.caption('')
         }
-        this.sinks.connection(event.state)
+        this.sinks.connection(event.state, event.restored)
         break
       case 'resumption-handle': this.sinks.resumptionHandle(event.receivedAt); break
       case 'tool-call':
         {
           const response = await runToolCall(event.call, this.handlers)
-          if (this.active && this.sessionId === sessionId) this.client.sendToolResponse(response)
+          if (this.active && this.sessionId === sessionId) {
+            this.client.sendToolResponse({ ...response, sessionEpoch: event.sessionEpoch })
+          }
         }
         break
       case 'audio': this.sinks.playAudio(event.pcm24Base64); break

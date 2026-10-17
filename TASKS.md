@@ -68,7 +68,8 @@ M7 has several completed components; M8 has a draft deck and script.
 - [x] Stream `frame` IPC → `sendRealtimeInput` video; turn queue prevents complete turns during model speech (real frame flow + transport tests)
 - [x] Resumption handle storage and GoAway → resume with buffered media/turns (real handle received; resume path tested with mocked transport)
 - [ ] Verify unexpected-close backoff, failed resumption → `[CONTEXT_RESTORE]`, and exhausted-retry fallback
-  (implemented; failure-path/live acceptance remains open)
+  (automated fault-injection tests now cover error-only close, timed-out connect/turn, unsafe handle,
+  failed resumption, degraded mode, and later recovery; real-network acceptance remains open)
 - [x] `prompts.ts` system instruction + turn templates (§6.4, §6.6)
 - [x] `tools.ts`: NON_BLOCKING declarations, zod validation, state-machine handlers, and response scheduling (SILENT verified live)
 - [x] Media window audio: gated 16 kHz mic worklet and 24 kHz playback; interruption flush routed (Terminal voice check + bridge tests)
@@ -446,3 +447,13 @@ M7 has several completed components; M8 has a draft deck and script.
   required by the no-interruption turn protocol. This verifies M6, not the full spoken Google Docs demo
   or checkpoint 2. Swift build, typecheck, all 104 tests, lint, production build, diff checks, and the
   final three-renderer dev-launch smoke check passed; test instances were closed.
+- 2026-10-17 — M3 Live recovery hardening: connection and app-turn deadlines now recover stalled
+  sockets; an error callback starts recovery even without a close event; degraded mode retries while
+  the study session is active. A `resumable: false` update clears the unsafe handle. Fresh recovery
+  sends `[CONTEXT_RESTORE]` before current work, drops old-session tool replies and stale screen checks,
+  and keeps only bounded, recent turns. Resumption preserves an in-flight turn until server completion,
+  and old microphone chunks are not replayed. Fault-injection tests cover no-handle recovery, failed
+  resumption, unsafe handles, error-only loss, stalled connects/turns, late sockets, offline recovery,
+  and queue limits. Typecheck, all 137 tests, lint, production build, and diff checks pass. The dev
+  renderer server started and Launch Services opened the built app. Real-network fault injection and
+  the 15-minute reconnect acceptance remain open.

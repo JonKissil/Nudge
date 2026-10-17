@@ -3,6 +3,8 @@ import {
 } from '@google/genai'
 import type { LiveConnectConfig, LiveServerMessage, Session } from '@google/genai'
 import { buildLiveConfig } from './config'
+import { LiveQueue } from './liveQueue'
+import { connectWithin, LiveTiming } from './liveTiming'
 import { contextRestoreTurn } from './prompts'
 import { TOOL_DECLARATIONS } from './tools'
 import type {
@@ -10,17 +12,19 @@ import type {
 } from './types'
 
 const BACKOFF_MS = [500, 1_000, 2_000, 4_000, 4_000] as const
+const CONNECT_TIMEOUT_MS = 10_000
+const TURN_TIMEOUT_MS = 30_000
 
 export class GeminiLiveClient implements LiveClient {
   private ai?: GoogleGenAI
   private session?: Session
   private context?: LiveSessionContext
   private readonly listeners = new Set<(event: LiveEvent) => void>()
-  private readonly turns: LiveTurn[] = []
-  private readonly responses: LiveToolResponse[] = []
-  private readonly audio: string[] = []
+  private readonly queue = new LiveQueue()
+  private readonly timing = new LiveTiming()
   private latestFrame?: string
   private handle?: string
+  private sessionEpoch = 0
   private active = false
   private lifecycleId = 0
   private connectionId = 0
@@ -49,6 +53,7 @@ export class GeminiLiveClient implements LiveClient {
     this.context = context
     this.active = true
     this.handle = undefined
+    this.timing.resetCycles()
     this.emit({ type: 'connection', state: 'reconnecting' })
     if (!this.apiKey) {
       this.emit({ type: 'error', message: 'GEMINI_API_KEY is missing.' })
@@ -57,9 +62,9 @@ export class GeminiLiveClient implements LiveClient {
     }
     this.ai = new GoogleGenAI({ apiKey: this.apiKey, httpOptions: { apiVersion: 'v1beta' } })
     try {
-      await this.open(undefined, lifecycleId)
+      await this.open(undefined, lifecycleId, false)
     } catch {
-      await this.recover(false, lifecycleId)
+      await this.recover(false, lifecycleId, false)
     }
   }
 
@@ -67,13 +72,13 @@ export class GeminiLiveClient implements LiveClient {
     this.active = false
     this.lifecycleId += 1
     this.connectionId += 1
-    this.session?.close()
+    this.timing.clear()
+    try { this.session?.close() }
+    catch { /* The transport is already unusable; finish local cleanup. */ }
     this.session = undefined
     this.context = undefined
     this.handle = undefined
-    this.turns.length = 0
-    this.responses.length = 0
-    this.audio.length = 0
+    this.queue.clear()
     this.latestFrame = undefined
     this.awaitingTurn = false
     this.modelSpeaking = false
@@ -83,7 +88,8 @@ export class GeminiLiveClient implements LiveClient {
   }
 
   sendTurn(turn: LiveTurn): void {
-    this.turns.push(turn)
+    if (!this.active) return
+    this.queue.addTurn(turn)
     this.flushTurns()
   }
 
@@ -98,24 +104,19 @@ export class GeminiLiveClient implements LiveClient {
   }
 
   sendAudio(pcm16Base64: string): void {
-    if (this.session) {
-      try {
-        this.session.sendRealtimeInput({ audio: { data: pcm16Base64, mimeType: 'audio/pcm;rate=16000' } })
-        return
-      } catch { void this.beginRecovery() }
-    }
-    this.audio.push(pcm16Base64)
-    if (this.audio.length > 50) this.audio.shift()
+    if (!this.session) return // Old microphone audio is not useful after a handoff.
+    try { this.session.sendRealtimeInput({ audio: { data: pcm16Base64, mimeType: 'audio/pcm;rate=16000' } }) }
+    catch { void this.beginRecovery() }
   }
 
   endAudioStream(): void {
-    this.audio.length = 0
     try { this.session?.sendRealtimeInput({ audioStreamEnd: true }) }
     catch { void this.beginRecovery() }
   }
 
   sendToolResponse(response: LiveToolResponse): void {
-    this.responses.push(response)
+    if (!this.active || (response.sessionEpoch !== undefined && response.sessionEpoch !== this.sessionEpoch)) return
+    this.queue.addResponse(response, this.sessionEpoch)
     this.flushResponses()
   }
 
@@ -127,7 +128,7 @@ export class GeminiLiveClient implements LiveClient {
     return this.active && lifecycleId === this.lifecycleId
   }
 
-  private async open(handle: string | undefined, lifecycleId: number): Promise<void> {
+  private async open(handle: string | undefined, lifecycleId: number, restore: boolean): Promise<void> {
     const context = this.context
     const ai = this.ai
     if (!context || !ai || !this.isCurrent(lifecycleId)) return
@@ -140,27 +141,59 @@ export class GeminiLiveClient implements LiveClient {
         ...declaration, behavior: Behavior.NON_BLOCKING,
       })) }],
     }
-    const session = await ai.live.connect({
+    const connecting = ai.live.connect({
       model: 'gemini-3.8-live', config,
       callbacks: {
         onmessage: (message) => { if (id === this.connectionId) this.onMessage(message) },
         onerror: (error) => {
-          if (id === this.connectionId) this.emit({ type: 'error', message: error.message || 'Live connection error.' })
+          if (id !== this.connectionId) return
+          this.emit({ type: 'error', message: error.message || 'Live connection error.' })
+          if (this.session) void this.beginRecovery()
         },
         onclose: () => {
-          if (id === this.connectionId && this.active) void this.beginRecovery()
+          if (id === this.connectionId && this.active && this.session) void this.beginRecovery()
         },
       },
     })
+    let session: Session
+    try {
+      session = await connectWithin(connecting, CONNECT_TIMEOUT_MS,
+        () => this.isCurrent(lifecycleId) && id === this.connectionId,
+        () => { if (id === this.connectionId) this.connectionId += 1 },
+        (late) => late.close())
+    } catch (error) {
+      if (id === this.connectionId) this.connectionId += 1
+      throw error
+    }
     if (!this.isCurrent(lifecycleId) || id !== this.connectionId) { session.close(); return }
+    const freshRestore = restore && !handle
+    if (freshRestore) {
+      const current = this.context ?? context
+      const turn = contextRestoreTurn(current, current.state ?? 'FOCUSED')
+      try {
+        session.sendClientContent({ turns: [{ role: 'user', parts: [{ text: turn.text }] }], turnComplete: false })
+      } catch (error) { session.close(); throw error }
+      this.queue.prepareFresh(current.state)
+    }
     this.session?.close()
     this.session = session
-    this.awaitingTurn = false
+    if (!handle) {
+      this.handle = undefined
+      this.sessionEpoch += 1
+      this.awaitingTurn = false
+      if (freshRestore) this.emit({ type: 'resumption-handle', receivedAt: null })
+    }
     this.modelSpeaking = false
-    this.emit({ type: 'connection', state: 'connected', resumed: Boolean(handle) })
+    this.timing.resetCycles()
+    this.timing.clearRetry()
+    this.emit({ type: 'connection', state: 'connected', resumed: Boolean(handle), restored: freshRestore })
+    if (this.awaitingTurn) this.watchTurn()
     this.flushResponses()
-    if (this.latestFrame) { this.sendFrame(this.latestFrame); this.latestFrame = undefined }
-    for (const chunk of this.audio.splice(0)) this.sendAudio(chunk)
+    if (this.latestFrame) {
+      const frame = this.latestFrame
+      this.latestFrame = undefined
+      this.sendFrame(frame)
+    }
     this.flushTurns()
   }
 
@@ -170,23 +203,24 @@ export class GeminiLiveClient implements LiveClient {
     const old = this.session
     this.session = undefined
     this.connectionId += 1
-    old?.close()
-    this.awaitingTurn = false
+    this.timing.clear()
+    try { old?.close() }
+    catch { /* Recovery must continue even if the old socket cannot close cleanly. */ }
     this.modelSpeaking = false
     this.emit({ type: 'connection', state: 'reconnecting' })
-    const promise = this.recover(Boolean(this.handle), lifecycleId)
+    const promise = this.recover(Boolean(this.handle), lifecycleId, true)
     this.recovery = { lifecycleId, promise }
     try { await promise }
     finally { if (this.recovery?.promise === promise) this.recovery = undefined }
   }
 
-  private async recover(tryResume: boolean, lifecycleId: number): Promise<void> {
+  private async recover(tryResume: boolean, lifecycleId: number, restore: boolean): Promise<void> {
     for (const delay of BACKOFF_MS) {
       if (!this.isCurrent(lifecycleId)) return
       await new Promise((resolve) => setTimeout(resolve, delay))
       if (!this.isCurrent(lifecycleId)) return
       try {
-        await this.open(tryResume ? this.handle : undefined, lifecycleId)
+        await this.open(tryResume ? this.handle : undefined, lifecycleId, restore)
         if (this.isCurrent(lifecycleId) && this.session) return
       } catch {
         // Retry with the same resumption handle after a transient connection failure.
@@ -194,14 +228,22 @@ export class GeminiLiveClient implements LiveClient {
     }
     if (tryResume && this.isCurrent(lifecycleId)) {
       try {
-        await this.open(undefined, lifecycleId)
-        if (this.isCurrent(lifecycleId) && this.session && this.context) {
-          this.sendTurn(contextRestoreTurn(this.context, this.context.state ?? 'FOCUSED'))
-          return
-        }
+        await this.open(undefined, lifecycleId, restore)
+        if (this.isCurrent(lifecycleId) && this.session) return
       } catch { /* degraded mode below */ }
     }
-    if (this.isCurrent(lifecycleId)) this.emit({ type: 'connection', state: 'degraded' })
+    if (this.isCurrent(lifecycleId)) {
+      this.emit({ type: 'connection', state: 'degraded' })
+      if (this.apiKey) this.timing.retryWhileActive(
+        () => this.isCurrent(lifecycleId), () => { void this.beginRecovery() })
+    }
+  }
+
+  private watchTurn(): void {
+    this.timing.watchTurn(TURN_TIMEOUT_MS, () => Boolean(this.session && this.awaitingTurn), () => {
+      this.emit({ type: 'error', message: 'Live response timed out.' })
+      void this.beginRecovery()
+    })
   }
 
   private onMessage(message: LiveServerMessage): void {
@@ -209,10 +251,17 @@ export class GeminiLiveClient implements LiveClient {
     if (update?.resumable && update.newHandle) {
       this.handle = update.newHandle
       this.emit({ type: 'resumption-handle', receivedAt: Date.now() })
+    } else if (update?.resumable === false) {
+      // An older handle can omit in-flight calls or generation state.
+      this.handle = undefined
+      this.emit({ type: 'resumption-handle', receivedAt: null })
     }
     if (message.goAway) { void this.beginRecovery(); return }
     for (const call of message.toolCall?.functionCalls ?? []) {
-      if (call.id && call.name) this.emit({ type: 'tool-call', call: { id: call.id, name: call.name, args: call.args ?? {} } })
+      if (call.id && call.name) this.emit({
+        type: 'tool-call', call: { id: call.id, name: call.name, args: call.args ?? {} },
+        sessionEpoch: this.sessionEpoch,
+      })
     }
     const content = message.serverContent
     if (!content) return
@@ -234,33 +283,37 @@ export class GeminiLiveClient implements LiveClient {
     // generationComplete can precede turnComplete while playback finishes.
     if (content.interrupted || content.turnComplete) {
       this.awaitingTurn = false
+      this.timing.clearTurn()
       this.flushTurns()
     }
   }
 
   private flushTurns(): void {
-    while (this.session && this.turns.length > 0) {
-      const next = this.turns[0]
+    while (this.session) {
+      const next = this.queue.firstTurn()
       // A nudge may be queued behind a silent [CHECK] as check-in opens. Deliver that
       // requested prompt once the prior turn ends; ordinary checks remain gated.
       if (!next || (next.turnComplete && (
         this.modelSpeaking || this.awaitingTurn || (this.checkinActive && next.tag !== 'NUDGE')
       ))) return
-      this.turns.shift()
       try {
         this.session.sendClientContent({ turns: [{ role: 'user', parts: [{ text: next.text }] }], turnComplete: next.turnComplete })
       } catch {
-        this.turns.unshift(next)
         void this.beginRecovery()
         return
       }
-      if (next.turnComplete) { this.awaitingTurn = true; return }
+      this.queue.shiftTurn()
+      if (next.turnComplete) {
+        this.awaitingTurn = true
+        this.watchTurn()
+        return
+      }
     }
   }
 
   private flushResponses(): void {
-    while (this.session && this.responses.length > 0) {
-      const next = this.responses.shift()
+    while (this.session) {
+      const next = this.queue.firstResponse(this.sessionEpoch)
       if (!next) return
       try {
         this.session.sendToolResponse({ functionResponses: [{
@@ -268,10 +321,10 @@ export class GeminiLiveClient implements LiveClient {
           scheduling: next.scheduling === 'silent' ? FunctionResponseScheduling.SILENT : FunctionResponseScheduling.WHEN_IDLE,
         }] })
       } catch {
-        this.responses.unshift(next)
         void this.beginRecovery()
         return
       }
+      this.queue.shiftResponse()
     }
   }
 }

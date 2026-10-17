@@ -212,13 +212,17 @@ session = await ai.live.connect({ model: 'gemini-3.8-live', config, callbacks })
 
 - **Connect** when the student starts a session (state `SETUP` → `FOCUSED`).
 - **Store** the newest `sessionResumptionUpdate.newHandle` whenever `resumable` is true.
+- **When `resumable` becomes false**, clear the older handle; resuming from it can lose recent
+  generation or tool-call state. A fresh connection restores context before any buffered turn or frame.
 - **On `goAway`** (sent before the server closes the connection, roughly every 10 minutes):
   reconnect immediately with the stored handle, buffering outgoing frames and turns until it's open.
 - **On unexpected close:** reconnect with the handle, using exponential backoff (0.5s, 1s, 2s, 4s; max 5 tries).
   Handles are valid for about 2 hours.
-- **If resumption fails:** open a fresh session and send a `[CONTEXT_RESTORE]` turn (`turnComplete: false`)
-  summarizing the task, the task window, the current state, and the last next step.
-- **If all reconnects fail:** enter **degraded mode** (§16). Never crash the session.
+- **If resumption fails or no safe handle exists:** open a fresh session and send a `[CONTEXT_RESTORE]`
+  turn (`turnComplete: false`) before current buffered work. Discard responses to tool calls from the
+  old session and stale `[CHECK]` turns.
+- **If all reconnects fail:** enter **degraded mode** (§16), then retry while the study session is
+  active. Connection attempts and complete app turns have deadlines. Never crash the session.
 - **Track speaking state:** `modelSpeaking = true` on the first audio chunk; `false` on `turnComplete`,
   `generationComplete`, or `interrupted`. On `interrupted`, the media window must flush its playback queue.
 
