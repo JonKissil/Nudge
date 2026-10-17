@@ -22,6 +22,7 @@ import { createSessionNote, visibleNotes } from './sessionNote'
 import { PerceptionController } from './perception'
 import { ReturnActions, type Guidance } from './returnActions'
 import { AppStore } from '../store'
+import { TaskRecovery } from './taskRecovery'
 
 export interface SessionHooks {
   // M2 calls this after its three-second active-window lock resolves.
@@ -183,6 +184,8 @@ export function registerScaffoldIpc(
     }
     syncMic()
     publish()
+    if (previous.phase === 'SETUP' && state.phase === 'FOCUSED' && state.taskWindow) recovery.start(state.taskWindow)
+    if (state.phase === 'ENDED' || (state.phase === 'SETUP' && previous.phase !== 'SETUP')) recovery.stop()
   })
   const live = new LiveSessionBridge(new GeminiLiveClient(), createStudyToolHandlers(study), {
     playAudio: (pcm24Base64) => getWindows()?.media.webContents.send(IPC.audioPlay, { pcm24Base64 }),
@@ -233,7 +236,12 @@ export function registerScaffoldIpc(
     requestFullFrame: () => perception.requestFullFrame(),
     showGuidance: (view) => { guidance = view; publish() }, log,
   })
-  app.once('before-quit', () => { perception.dispose() })
+  const recovery = new TaskRecovery({
+    getPhase: () => study.state.phase, readUrl: (window) => perception.readTaskUrl(window),
+    updateUrl: (url) => study.dispatch({ type: 'TASK_URL_UPDATED', url }),
+    save: (task) => store.saveTaskTab(task), log,
+  })
+  app.once('before-quit', () => { recovery.dispose(); perception.dispose() })
 
   let tickMs = demoMode ? DEMO.tickMs : DEFAULTS.tickMs
   let lastCheckAt = Date.now()
@@ -413,7 +421,7 @@ export function registerScaffoldIpc(
   return {
     activateTaskWindow, observeWindow,
     requestFullFrame: () => perception.requestFullFrame(),
-    dispose: () => perception.dispose(),
+    dispose: () => { recovery.dispose(); perception.dispose() },
     togglePushToTalk: () => {
       if (['IDLE', 'SETUP', 'PAUSED', 'ENDED'].includes(study.state.phase)) {
         return { ok: false, error: 'Start or resume a study session to use push-to-talk.' }

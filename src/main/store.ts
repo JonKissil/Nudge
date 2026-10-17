@@ -4,8 +4,9 @@ import { dirname } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { AllowListEntry, WindowInfo } from '../shared/types'
 import { addAllowedWindow, StoredStateSchema, type StoredState } from './drift/allowList'
+import { SavedTaskTabSchema, type SavedTaskTab } from './session/taskUrl'
 
-/** Only the allow-list is persisted; frames, audio, and study-session history never are. */
+/** Saves allowances and one current task URL checkpoint; never frames, audio, or history. */
 export class AppStore {
   private state: StoredState = { version: 1, allowList: [] }
   private writes: Promise<void> = Promise.resolve()
@@ -22,8 +23,24 @@ export class AppStore {
   get allowList(): readonly AllowListEntry[] { return this.state.allowList }
 
   allow(window: WindowInfo): Promise<void> {
+    return this.update((state) => addAllowedWindow(state, window), 'The allow-list could not be saved. Please try again.')
+  }
+
+  saveTaskTab(task: SavedTaskTab | undefined): Promise<void> {
+    const parsed = task && SavedTaskTabSchema.parse(task)
+    return this.update((state) => {
+      const previous = state.lockedTask
+      if ((!parsed && !previous) || (parsed && previous && parsed.url === previous.url
+        && parsed.bundleId === previous.bundleId && parsed.app === previous.app && parsed.title === previous.title)) return state
+      const { lockedTask: _removed, ...rest } = state
+      void _removed
+      return parsed ? { ...rest, lockedTask: parsed } : rest
+    }, 'The task URL could not be saved. Keeping its address in memory.')
+  }
+
+  private update(change: (state: StoredState) => StoredState, errorMessage: string): Promise<void> {
     const write = this.writes.then(async () => {
-      const next = addAllowedWindow(this.state, window)
+      const next = change(this.state)
       if (next === this.state) return
       await mkdir(dirname(this.path), { recursive: true })
       const temporary = `${this.path}.${randomUUID()}.tmp`
@@ -32,7 +49,7 @@ export class AppStore {
         await rename(temporary, this.path)
       } catch {
         await unlink(temporary).catch(() => {})
-        throw new Error('The allow-list could not be saved. Please try again.')
+        throw new Error(errorMessage)
       }
       this.state = next
     })

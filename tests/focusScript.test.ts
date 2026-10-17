@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appleScriptString, buildFocusScript } from '../src/main/os/focusScript'
+import { appleScriptString, buildFocusScript, buildReadTaskUrlScript } from '../src/main/os/focusScript'
 import type { WindowInfo } from '../src/shared/types'
 
 const safari: WindowInfo = { app: 'Safari', bundleId: 'com.apple.Safari', title: 'Essay',
@@ -18,13 +18,24 @@ describe('focus AppleScript', () => {
     expect(script).toContain('set boundary to character')
     expect(script).toContain('considering case')
     expect(script).toContain('or boundary is "/"')
-    expect(script).toContain('return "not_found"')
+    expect(script).toContain('make new document with properties {URL:"https://docs.google.com/document/d/abc/edit?tab=1"}')
+    expect(script).toContain('make new tab at end of tabs of w')
   })
   it('selects a Chromium tab and uses origin/path rather than search or fragment', () => {
     const script = buildFocusScript({ ...safari, app: 'Google Chrome', bundleId: 'com.google.Chrome', url: 'https://example.com/essay?q=a#part' })
     expect(script).toContain('set active tab index of w to tabNumber')
     expect(script).toContain('set target to "https://example.com/essay"')
     expect(script).not.toContain('or boundary is "/"')
+    expect(script).toContain('set URL of active tab of w to "https://example.com/essay?q=a#part"')
+  })
+  it('reads a matching background tab without selecting, activating, or creating anything', () => {
+    for (const window of [safari, { ...safari, app: 'Google Chrome', bundleId: 'com.google.Chrome' }]) {
+      const script = buildReadTaskUrlScript(window)
+      expect(script).toContain('is not running then return ""')
+      expect(script).toContain('return URL of t')
+      expect(script).not.toMatch(/activate|make new|set current tab|set active tab index/u)
+    }
+    expect(buildReadTaskUrlScript({ ...safari, app: 'TextEdit', bundleId: 'com.apple.TextEdit' })).toBeUndefined()
   })
   it('activates other apps safely and declines unsupported browser tab automation', () => {
     expect(buildFocusScript({ ...safari, app: 'TextEdit', bundleId: 'com.apple.TextEdit', url: undefined }))

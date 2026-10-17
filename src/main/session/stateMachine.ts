@@ -2,6 +2,7 @@ import { DEFAULTS } from '../../shared/config'
 import type { RuleVerdict, SessionState, Status, WindowInfo } from '../../shared/types'
 import { checkTurn, nudgeTurn, returnedTurn, sessionStartTurn, snoozeOverTurn } from '../gemini/prompts'
 import type { LiveTurn } from '../gemini/types'
+import { refreshedTaskUrl } from './taskUrl'
 
 export interface StudyConfig {
   graceMs: number
@@ -41,6 +42,7 @@ export type StudyEvent =
   | { type: 'WINDOW_OBSERVED'; window: WindowInfo; verdict: RuleVerdict; matchesTask: boolean }
   | { type: 'MODEL_STATUS'; status: Status }
   | { type: 'CHECK_FAILED' }
+  | { type: 'TASK_URL_UPDATED'; url: string }
   | { type: 'TICK' }
   | { type: 'NUDGE_SENT' }
   | { type: 'USER_SPEECH' }
@@ -96,6 +98,12 @@ function snooze(state: StudyState, now: number, durationMs: number): StudyResult
 }
 
 export function reduce(state: StudyState, event: StudyEvent, now: number): StudyResult {
+  if (event.type === 'TASK_URL_UPDATED') {
+    const url = state.taskWindow && refreshedTaskUrl(state.taskWindow, event.url)
+    return url && state.taskWindow && state.taskWindow.url !== url
+      && ['FOCUSED', 'DRIFTING', 'SNOOZED', 'REENTRY'].includes(state.phase)
+      ? result({ ...state, taskWindow: { ...state.taskWindow, url } }) : result(state)
+  }
   if (event.type === 'SET_CONFIG') return result({ ...state, config: event.config })
   if (event.type === 'END' && state.phase !== 'ENDED') {
     return result({ ...state, phase: 'ENDED', checkPending: false }, [

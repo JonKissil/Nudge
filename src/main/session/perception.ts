@@ -2,7 +2,8 @@ import type { AppWindows } from '../windows'
 import { classifyWindow } from '../drift/rules'
 import { isBrowser, matchWindow } from '../drift/matchWindow'
 import { readActiveWindow, startActiveWindowPoller } from '../os/activeWindow'
-import { queueWindowReads } from '../os/windowReadQueue'
+import { NativeReadQueue } from '../os/windowReadQueue'
+import { readTaskTabUrl } from '../os/focus'
 import { registerScreenCapture } from '../os/screenCapture'
 import { DEFAULTS } from '../../shared/config'
 import { IPC } from '../../shared/ipc'
@@ -37,7 +38,8 @@ export class PerceptionController {
   private readonly stopPoller: () => void
   private readonly stopCaptureHandler: () => void
   private readonly metricsTimer: ReturnType<typeof setInterval>
-  private readonly readWindow = queueWindowReads(readActiveWindow)
+  private readonly nativeReads = new NativeReadQueue()
+  private readonly readWindow = (): Promise<WindowInfo | undefined> => this.nativeReads.run(readActiveWindow)
 
   constructor(private readonly ports: PerceptionPorts) {
     const media = ports.getWindows()?.media
@@ -75,6 +77,12 @@ export class PerceptionController {
   }
 
   readCurrentWindow(): Promise<WindowInfo | undefined> { return this.readWindow() }
+
+  readTaskUrl(window: WindowInfo): Promise<string | undefined> {
+    return this.nativeReads.run(() => !this.disposed
+      && ['FOCUSED', 'DRIFTING', 'SNOOZED', 'REENTRY'].includes(this.ports.getPhase())
+      ? readTaskTabUrl(window) : Promise.resolve(undefined))
+  }
 
   async refreshWindow(window?: WindowInfo): Promise<void> { await this.observe(window ?? await this.readWindow()) }
 

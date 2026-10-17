@@ -30,6 +30,16 @@ function checkin(now = 15_000): StudyState {
 }
 
 describe('study session reducer', () => {
+  it('refreshes only the locked task URL without resetting focus or accepting another document', () => {
+    const state = setup()
+    const updated = reduce(state, { type: 'TASK_URL_UPDATED', url: `${doc.url}?tab=2#heading` }, 10_000)
+    expect(updated.state.taskWindow?.url).toBe(`${doc.url}?tab=2#heading`)
+    expect(updated.state.phase).toBe('FOCUSED')
+    expect(updated.effects).toEqual([])
+    expect(reduce(updated.state, { type: 'TASK_URL_UPDATED', url: video.url! }, 20_000).state).toBe(updated.state)
+    const ended = step(updated.state, { type: 'END' }, 20_000)
+    expect(reduce(ended, { type: 'TASK_URL_UPDATED', url: doc.url! }, 21_000).state).toBe(ended)
+  })
   it('moves from setup to focused with one Live connection and greeting', () => {
     const initial = createStudyState(config)
     const setupResult = reduce(initial, { type: 'START_SETUP', task: 'History essay', minutes: 30 }, 0)

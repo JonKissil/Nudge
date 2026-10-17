@@ -72,4 +72,9 @@ During a check-in, **Take me back** selects the locked tab in Safari, Chrome, Ar
 other document apps are activated. Arrival is confirmed by window polling. **This is for my task** saves
 the current page (including its query, so allowing one video does not allow every video) or non-browser
 app in `state.json` under Electron's Nudge user-data directory. These allowances survive restarts.
+Nudge also saves the locked browser tab's full URL at lock and refreshes it every 10 seconds while
+monitoring, including when that tab is in the background. **Take me back** and **Take me there** reuse
+an existing matching tab or reopen the saved address if it was closed. Only a matching task URL can
+update this checkpoint; unrelated pages cannot replace it. Pause suspends URL checks, and End removes
+the checkpoint. This recovers a closed tab during the current session; it does not restore ended sessions.
 The full demo path and its remaining acceptance checks are in [TASKS.md](TASKS.md).

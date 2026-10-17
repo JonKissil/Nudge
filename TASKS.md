@@ -16,8 +16,9 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 
 **Status — 2026-10-17:** M2 and integration checkpoint 1 are verified. M1's Safari interaction check is
 confirmed; capture exclusion is still open. M3/M4 implementation is integrated and tested, with the real
-15-minute reconnect and full drift-demo checks still open. Real focus/guide/allow actions and OCR remain
-the main implementation gaps. M7 has several completed components; M8 has a draft deck and script.
+15-minute reconnect and full drift-demo checks still open. M5 focus/guide/allow and closed-tab recovery
+are implemented and Safari-tested; document OCR remains the main implementation gap. M7 has several
+completed components; M8 has a draft deck and script.
 
 ---
 
@@ -100,6 +101,7 @@ the main implementation gaps. M7 has several completed components; M8 has a draf
 - [x] `RETURNING` timeout → `DRIFTING`; self-return during `CHECKIN` → `REENTRY` (reducer/FakeLiveClient tests)
 - [x] `snooze` tool/button routing and timer transitions (tests; real silence → snooze recorded)
 - [x] `allow_current_window` end to end with persisted allow-list in `store.ts` (tool tests, actual overlay action and saved-page classification after a full Electron restart)
+- [x] Requested follow-up: checkpoint the locked task URL every 10s; reuse an open tab or reopen a closed tab on an explicit return request (background Safari URL update, closed-tab recovery through both return controls, no duplicate, and End cleanup verified)
 - [ ] Repeat return/guide/allow with spoken requests in a real Live check-in; Chrome has script tests but no native acceptance run
 - Main now supplies focus, tab-strip OCR guidance, and persisted allow actions. Safari acceptance uses
   scripted model tool calls with the real OS, capture, IPC, overlay, and poller. Document OCR/line anchoring remains M6.
@@ -375,3 +377,18 @@ the main implementation gaps. M7 has several completed components; M8 has a draf
 - 2026-10-17 — M5 checks passed: Swift helper build, typecheck, all 81 tests, lint, production build,
   and diff checks. The final `npm run dev` smoke check verified three renderers, the control form/HUD,
   isolated APIs, native polling, and capture off before locking; its test instance was closed.
+- 2026-10-17 — Requested M5 follow-up: save the full locked browser URL immediately, then read matching
+  tabs every 10 seconds during monitoring, including background tabs. Query/fragment changes and Docs
+  view changes update the in-memory target and one validated local JSON checkpoint; unchanged URLs
+  avoid repeat disk writes. Unrelated pages cannot overwrite the task. Window and task-URL reads share
+  the serial native-read queue; Pause suspends URL reads, End clears the checkpoint, and stale reads
+  from an ended/replaced task cannot restore it. Explicit returns search existing tabs first and reopen
+  the saved HTTP(S) URL only when no match exists, within one AppleScript action without automatic retries.
+- 2026-10-17 — Closed-tab recovery verified in Safari with local pages and scripted model replies:
+  the initial URL was saved at lock, a background tab's changed query/fragment was checkpointed without
+  stealing focus, and Take me back reopened exactly one tab at that updated URL. A subsequent return
+  reused the existing tab without duplication. The title-card Take me there button also reopened a
+  closed task tab, native polling confirmed re-entry, and End removed the checkpoint. Temporary test
+  windows were closed and the original saved state restored. Added URL validation/compatibility,
+  refresh timing, failure recovery, stale-read cancellation, and reducer tests. Typecheck, all 90 tests,
+  lint, production build, diff checks, and the final three-window dev-launch smoke check passed.
