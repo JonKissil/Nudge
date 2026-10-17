@@ -39,6 +39,7 @@ export class PerceptionController {
   private readonly stopCaptureHandler: () => void
   private readonly metricsTimer: ReturnType<typeof setInterval>
   private readonly nativeReads = new NativeReadQueue()
+  private readonly fullFrames = new NativeReadQueue()
   private readonly readWindow = (): Promise<WindowInfo | undefined> => this.nativeReads.run(readActiveWindow)
 
   constructor(private readonly ports: PerceptionPorts) {
@@ -177,7 +178,7 @@ export class PerceptionController {
   }
 
   requestFullFrame(): Promise<FullFrame> {
-    return new Promise((resolve, reject) => {
+    return this.fullFrames.run(() => new Promise<FullFrame>((resolve, reject) => {
       if (!this.captureAllowed() || this.ports.getSnapshot().stats.capture?.state !== 'running') {
         reject(new Error('Capture is not running'))
         return
@@ -186,7 +187,7 @@ export class PerceptionController {
       this.fullRequest = { resolve, reject,
         timer: setTimeout(() => this.rejectFullFrame('Full-resolution frame timed out'), 5000) }
       this.ports.getWindows()?.media.webContents.send(IPC.frameRequestFull, {})
-    })
+    }))
   }
 
   private rejectFullFrame(message: string): void {

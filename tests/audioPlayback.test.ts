@@ -56,4 +56,19 @@ describe('speaker worklet', () => {
     expect(output[lastAudible]!).toBeLessThan(0.01)
     expect(output.slice(lastAudible + 1).every((value) => value === 0)).toBe(true)
   })
+
+  it('raises volume smoothly when a delayed chunk refills a nearly empty queue', () => {
+    const speaker = makeSpeaker()
+    const first = new Int16Array(4_800).fill(16_000)
+    speaker.port.onmessage({ data: { type: 'audio', samples: first.buffer } })
+    const beforeRefill = render(speaker, 4_704)
+    const second = new Int16Array(4_800).fill(16_000)
+    speaker.port.onmessage({ data: { type: 'audio', samples: second.buffer } })
+    const afterRefill = render(speaker, 192)
+    const aroundRefill = [...beforeRefill.slice(-1), ...afterRefill]
+    const largestStep = aroundRefill.reduce((largest, value, index) =>
+      index === 0 ? largest : Math.max(largest, Math.abs(value - aroundRefill[index - 1]!)), 0)
+    expect(largestStep).toBeLessThan(0.01)
+    expect(afterRefill.at(-1)).toBeGreaterThan(0.48)
+  })
 })

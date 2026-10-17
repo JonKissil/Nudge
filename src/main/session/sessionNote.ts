@@ -3,8 +3,22 @@ import type { NormalizedBox, NoteView, WindowBounds, WindowInfo } from '../../sh
 
 const NOTE_LIFETIME_MS = 3 * 60_000
 const NOTE_WIDTH = 272
+const NOTE_HEIGHT = 224
 
 function unit(value: number): number { return Math.max(0, Math.min(1, value)) }
+
+function constrainAnchor(anchor: NormalizedBox, taskWindow: WindowInfo | undefined, display: WindowBounds): NormalizedBox {
+  const task = taskWindow?.bounds ?? display
+  const left = Math.max(16, task.x - display.x + 16)
+  const right = Math.min(display.width - 16, task.x + task.width - display.x - 16)
+  const ideal = (anchor.x + anchor.w) * display.width + 12
+  const x = Math.max(Math.min(left, display.width - NOTE_WIDTH - 16), Math.min(ideal, right - NOTE_WIDTH))
+  const top = Math.max(64, task.y - display.y + 16)
+  const bottom = Math.min(display.height, task.y + task.height - display.y) - NOTE_HEIGHT
+  const y = Math.max(Math.min(top, display.height - NOTE_HEIGHT), Math.min(anchor.y * display.height, bottom))
+  return { ...anchor, ...(Math.abs(x - ideal) > 0.01 ? { x: unit((x - 12) / display.width), w: 0 } : {}),
+    y: unit(y / display.height) }
+}
 
 /** Place a note inside the task window's right margin when no OCR line box is available. */
 export function marginAnchor(taskWindow: WindowInfo | undefined, display: WindowBounds): NormalizedBox {
@@ -23,8 +37,8 @@ export function createSessionNote(
   now: number, lineAnchor?: NormalizedBox,
 ): NoteView {
   return {
-    id, text, anchor: lineAnchor && NormalizedBoxSchema.safeParse(lineAnchor).success
-      ? lineAnchor : marginAnchor(taskWindow, display),
+    id, text, anchor: constrainAnchor(lineAnchor && NormalizedBoxSchema.safeParse(lineAnchor).success
+      ? lineAnchor : marginAnchor(taskWindow, display), taskWindow, display),
     expiresAt: now + NOTE_LIFETIME_MS,
   }
 }

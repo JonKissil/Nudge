@@ -5,6 +5,7 @@ import { createStudyState, reduce, type StudyConfig, type StudyEvent, type Study
 
 export class StudyEngine {
   state: StudyState
+  private reentryVersion = 0
 
   constructor(
     config: StudyConfig,
@@ -25,6 +26,8 @@ export class StudyEngine {
     }
     const previous = this.state
     const result = reduce(previous, event, now)
+    if ((previous.phase !== 'REENTRY' && result.state.phase === 'REENTRY') || event.type === 'START_SETUP') this.reentryVersion++
+    const reentryVersion = this.reentryVersion
     this.state = result.state
     if (this.state !== previous) this.onState(this.state, previous)
 
@@ -32,7 +35,7 @@ export class StudyEngine {
       if (event.type === 'ALLOW_CURRENT' && effect.type === 'ALLOW_WINDOW') continue
       const outcome = await executeEffect(effect, this.state, this.ports)
       if (!outcome.ok) {
-        if (event.type === 'ALLOW_CURRENT' || event.type === 'PIN_STEP') {
+        if ((event.type === 'ALLOW_CURRENT' || event.type === 'PIN_STEP') && this.state === result.state) {
           const failed = this.state
           this.state = previous
           this.onState(this.state, failed)
@@ -41,7 +44,9 @@ export class StudyEngine {
         }
         return outcome
       }
-      if (outcome.ocrLines) await this.dispatch({ type: 'REENTRY_LINES', lines: outcome.ocrLines }, now)
+      if (outcome.ocrLines && this.state.phase === 'REENTRY' && this.reentryVersion === reentryVersion) {
+        await this.dispatch({ type: 'REENTRY_LINES', lines: outcome.ocrLines }, now)
+      }
     }
 
     if (event.type === 'TICK' && result.state.phase === 'NUDGING') {
