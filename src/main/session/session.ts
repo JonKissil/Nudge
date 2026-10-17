@@ -269,7 +269,9 @@ export function registerScaffoldIpc(
     updateUrl: (url) => study.dispatch({ type: 'TASK_URL_UPDATED', url }),
     save: (task) => store.saveTaskTab(task), log,
   })
-  app.once('before-quit', () => { document.reset(); returns.dispose(); ocr.dispose(); recovery.dispose(); perception.dispose() })
+  app.once('before-quit', () => { live.dispose(); document.reset(); returns.dispose(); ocr.dispose(); recovery.dispose(); perception.dispose() })
+  // Open the API while the student fills out setup; screen/mic forwarding still requires a locked session.
+  live.warmup()
 
   let tickMs = demoMode ? DEMO.tickMs : DEFAULTS.tickMs
   let lastCheckAt = Date.now()
@@ -341,7 +343,9 @@ export function registerScaffoldIpc(
     perception.cancelLock()
     snapshot = { ...snapshot, lockError: undefined }
     sessionNotes = []
-    return study.dispatch({ type: 'START_SETUP', ...input })
+    const result = await study.dispatch({ type: 'START_SETUP', ...input })
+    if (result.ok) live.warmup(study.state.language)
+    return result
   })
   const endSession = async (): Promise<ActionResult> => {
     if (endingSession) return endingSession
@@ -463,7 +467,7 @@ export function registerScaffoldIpc(
       return () => { snapshotListeners.delete(listener) }
     },
     requestFullFrame: () => perception.requestFullFrame(),
-    dispose: () => { document.reset(); returns.dispose(); ocr.dispose(); recovery.dispose(); perception.dispose() },
+    dispose: () => { live.dispose(); document.reset(); returns.dispose(); ocr.dispose(); recovery.dispose(); perception.dispose() },
     togglePushToTalk: () => {
       if (['IDLE', 'SETUP', 'PAUSED', 'ENDED'].includes(study.state.phase)) {
         return { ok: false, error: 'Start or resume a study session to use push-to-talk.' }

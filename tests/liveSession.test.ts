@@ -25,6 +25,59 @@ const handlers: ToolHandlers = {
 }
 
 describe('LiveSessionBridge', () => {
+  it('warms at boot while blocking media, speech, and tool actions until a study starts', async () => {
+    const client = new FakeLiveClient()
+    const sinks = {
+      playAudio: vi.fn(), flushAudio: vi.fn(), resetAudio: vi.fn(), caption: vi.fn(),
+      userSpeech: vi.fn(), micSet: vi.fn(), connection: vi.fn(), resumptionHandle: vi.fn(), error: vi.fn(),
+    }
+    const focus = vi.fn(handlers.focusTaskWindow)
+    const bridge = new LiveSessionBridge(client, { ...handlers, focusTaskWindow: focus }, sinks)
+    bridge.warmup()
+    expect(client.warmups).toEqual(['en'])
+    expect(sinks.connection).toHaveBeenCalledWith('connected')
+    bridge.updateContext(context)
+    expect(client.context).toBeUndefined()
+    bridge.sendFrame('private-screen')
+    bridge.setMicOpen(true)
+    bridge.sendMicChunk('private-audio')
+    client.script([
+      { type: 'audio', pcm24Base64: 'unexpected' }, { type: 'transcription', text: 'Unexpected' },
+      { type: 'tool-call', call: { id: 'warm-tool', name: 'focus_task_window', args: {} } },
+    ])
+    expect(client.frames).toEqual([])
+    expect(client.audioChunks).toEqual([])
+    expect(sinks.playAudio).not.toHaveBeenCalled()
+    expect(sinks.caption).not.toHaveBeenCalled()
+    expect(focus).not.toHaveBeenCalled()
+    expect(client.toolResponses).toMatchObject([{ id: 'warm-tool', scheduling: 'silent', response: { ok: false } }])
+    await bridge.stop()
+    expect(client.disconnects).toBe(1)
+    bridge.dispose()
+    bridge.warmup()
+    expect(client.warmups).toEqual(['en'])
+  })
+
+  it('starts capture-side work without awaiting a slow connection and ignores a failure after End', async () => {
+    const client = new FakeLiveClient()
+    let rejectConnect!: (error: Error) => void
+    vi.spyOn(client, 'connect').mockImplementation(() => new Promise<void>((_, reject) => { rejectConnect = reject }))
+    const sinks = {
+      playAudio: vi.fn(), flushAudio: vi.fn(), resetAudio: vi.fn(), caption: vi.fn(),
+      userSpeech: vi.fn(), micSet: vi.fn(), connection: vi.fn(), resumptionHandle: vi.fn(), error: vi.fn(),
+    }
+    const bridge = new LiveSessionBridge(client, handlers, sinks)
+    await bridge.start(context)
+    bridge.sendFrame('first-frame')
+    expect(client.frames).toEqual(['first-frame'])
+    await bridge.stop()
+    rejectConnect(new Error('Old handshake failed'))
+    await Promise.resolve()
+    expect(sinks.error).not.toHaveBeenCalled()
+    expect(sinks.connection).toHaveBeenLastCalledWith('disconnected')
+    bridge.dispose()
+  })
+
   it('routes turns, media and captions, and closes audio on stop', async () => {
     const client = new FakeLiveClient()
     const sinks = {

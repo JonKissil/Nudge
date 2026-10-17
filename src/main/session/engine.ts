@@ -32,6 +32,10 @@ export class StudyEngine {
     if (this.state !== previous) this.onState(this.state, previous)
 
     for (const effect of result.effects) {
+      if (event.type === 'LOCK_WINDOW' && (reentryVersion !== this.reentryVersion
+        || ['IDLE', 'SETUP', 'PAUSED', 'ENDED'].includes(this.state.phase))) {
+        return { ok: false, error: 'Study session start was cancelled.' }
+      }
       if (event.type === 'ALLOW_CURRENT' && effect.type === 'ALLOW_WINDOW') continue
       const outcome = await executeEffect(effect, this.state, this.ports)
       if (!outcome.ok) {

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isBase64 } from './base64'
 import {
   CaptureStatusSchema, MicTestResultSchema, OverlayActionSchema, OverlayStateSchema, SessionSnapshotSchema,
   SessionStartSchema, SettingsSchema,
@@ -21,7 +22,7 @@ export const IPC = {
 
 export const EmptySchema = z.strictObject({})
 const dimensions = { width: z.number().int().positive(), height: z.number().int().positive() }
-const base64 = z.string().min(1).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u)
+const base64 = z.string().refine(isBase64, 'Expected valid base64')
 
 export const IpcSchemas = {
   [IPC.frame]: z.strictObject({ jpegBase64: base64, ...dimensions, ts: z.number().nonnegative() }),

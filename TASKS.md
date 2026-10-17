@@ -67,6 +67,10 @@ completed components; M8 has a draft deck and script.
 
 - [x] `LiveClient` interface + `FakeLiveClient` (scripted tool calls/audio events)
 - [x] `liveClient.ts`: connect with the AGENTS.md §6.2 config; fields checked against current docs and a real connection verified
+- [x] Requested API startup warmup: prepare a quiet connection at boot, reuse it when the task is
+  locked, and prepare a selected language during setup. Connection startup no longer blocks capture
+  or polling. Real idle API connection, zero pre-lock media, language preparation/reuse, End cleanup,
+  and next-task warmup verified; regression tests cover adoption, failure, cancellation, and stale results.
 - [x] Continuous `frame` IPC delivery to Live: fresh images travel with CHECK text, other frames use
   realtime video; turn queue prevents complete turns during model speech (real frame flow + transport tests)
 - [x] Resumption handle storage and GoAway → resume with buffered media/turns (real handle received; resume path tested with mocked transport)
@@ -542,3 +546,25 @@ completed components; M8 has a draft deck and script.
   and an isolated three-renderer dev check passed. Native checks confirmed the centered 440 × 440
   window, draft retention, French setup, a later Japanese change reaching Start, and Settings navigation.
   No capture or Live connection was started by this UI check; multilingual listening remains open.
+- 2026-10-17 — M3 startup latency: the previous lock effect awaited the API handshake before starting
+  capture. Main now warms a quiet Live connection during boot and adopts it with a silent context
+  update before the greeting. Saving setup prepares the chosen transcription language; an active
+  study keeps its existing connection. Capture and queued checks start without waiting for connection
+  work. Warmup cannot forward screen/mic input, play model speech, or execute model tools. End/Quit
+  cancel pending work and close the connection; saving the next task prepares a fresh one.
+  An isolated real-API dev run reached connected while IDLE with capture off, zero frames, and mic
+  closed. English setup reused it; French preparation opened exactly one replacement, repeated saves
+  reused that connection, End closed it, and the next setup connected before lock. Eight regressions
+  cover ready/in-flight adoption, language preparation, failure/retry, stale completion, pre-session
+  input/output/tool gates, nonblocking startup, and cancellation. Typecheck, 146 tests, lint, production
+  build, and three-renderer dev launch passed. Long-idle/reconnect and the spoken demo remain open.
+- 2026-10-17 — Fixed the “running · The full-resolution frame could not be encoded” warning: the
+  grouped base64 validation regex overflowed V8's call stack on valid large PNGs. Replaced it with a
+  stack-safe scan retaining length, alphabet, and padding checks. Full-frame errors now reject the
+  pending OCR request immediately without stopping JPEG streaming; a successful retry clears the
+  warning, and cancelled encoding cannot restore a running status after Pause/End.
+  An isolated Electron check generated a 3840 × 2160 PNG (37,847,244 base64 characters) and passed it
+  through real renderer encoding, preload validation, IPC, and main validation. Injected delivery
+  failure/retry and a late encoding failure after Pause also passed. Only generated pixels were used;
+  no screen pixels or image payloads were logged or saved. Typecheck, all 150 tests, lint, production
+  build, three-renderer dev launch, and diff checks passed; the test instance was closed.

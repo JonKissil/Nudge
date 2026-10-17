@@ -59,6 +59,18 @@ async function reachCheckin(f: ReturnType<typeof fixture>): Promise<void> {
 }
 
 describe('study engine and Live tool loop', () => {
+  it('does not start capture or send a greeting after End cancels window locking', async () => {
+    const f = fixture()
+    await f.engine.dispatch({ type: 'START_SETUP', task: 'Essay', minutes: 30 })
+    const locking = f.engine.dispatch({ type: 'LOCK_WINDOW', window: doc })
+    await f.engine.dispatch({ type: 'END' })
+    await locking
+    expect(f.engine.state.phase).toBe('ENDED')
+    expect(f.capture).not.toHaveBeenCalledWith(true)
+    expect(f.client.turns).toEqual([])
+    f.bridge.dispose()
+  })
+
   it('ignores OCR from an ended session even if another session is already in re-entry', async () => {
     const f = fixture()
     await reachCheckin(f)

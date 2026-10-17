@@ -117,8 +117,13 @@ export class ScreenCapture {
       const pngBase64 = await base64(await canvas.convertToBlob({ type: 'image/png' }))
       if (this.wanted && generation === this.generation) {
         this.api.sendFullFrame({ pngBase64, width: canvas.width, height: canvas.height })
+        this.api.sendCaptureStatus({ state: 'running' })
       }
-    } catch { this.api.sendCaptureStatus({ state: 'running', error: 'The full-resolution frame could not be encoded.' }) }
+    } catch {
+      if (this.wanted && generation === this.generation) {
+        this.api.sendCaptureStatus({ state: 'running', error: 'The full-resolution frame could not be prepared or sent.' })
+      }
+    }
   }
 
   dispose(): void { this.wanted = false; this.generation++; this.stop() }

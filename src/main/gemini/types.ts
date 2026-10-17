@@ -47,6 +47,7 @@ export type LiveEvent =
   | { type: 'error'; message: string }
 
 export interface LiveClient {
+  warmup(language?: LanguageCode): Promise<void>
   connect(context: LiveSessionContext): Promise<void>
   disconnect(): Promise<void>
   onEvent(listener: (event: LiveEvent) => void): () => void
