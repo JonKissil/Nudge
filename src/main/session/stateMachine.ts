@@ -122,12 +122,15 @@ export function reduce(state: StudyState, event: StudyEvent, now: number): Study
     return result({ ...state, phase: 'FOCUSED' }, [{ type: 'START_CAPTURE' }])
   }
   if (event.type === 'WINDOW_OBSERVED') {
+    if (event.verdict === 'ignore') return result(state)
     if ((state.phase === 'CHECKIN' || state.phase === 'RETURNING') && event.matchesTask) {
       return enterReentry({ ...state, currentWindow: event.window }, now)
     }
-    if (state.phase !== 'FOCUSED' && state.phase !== 'DRIFTING') return result(state)
+    if (state.phase !== 'FOCUSED' && state.phase !== 'DRIFTING') {
+      return ['CHECKIN', 'RETURNING', 'SNOOZED'].includes(state.phase)
+        ? result({ ...state, currentWindow: event.window }) : result(state)
+    }
     const current = { ...state, currentWindow: event.window }
-    if (event.verdict === 'ignore') return result(current)
     if (event.verdict === 'on') {
       return result({ ...current, phase: 'FOCUSED', driftSince: undefined, checkPending: false })
     }
@@ -190,11 +193,12 @@ export function reduce(state: StudyState, event: StudyEvent, now: number): Study
   if (event.type === 'USER_SPEECH' && state.phase === 'CHECKIN') {
     return result({ ...state, checkinLastHeardAt: now })
   }
-  if (event.type === 'RETURN_REQUEST' && state.phase === 'CHECKIN') {
+  if (event.type === 'RETURN_REQUEST' && (state.phase === 'CHECKIN'
+    || (state.phase === 'RETURNING' && state.returnMode === 'guided' && event.mode === 'focused'))) {
     return result({
       ...state, phase: 'RETURNING', returnMode: event.mode,
       returnUntil: now + state.config.returnTimeoutMs,
-    }, [{ type: event.mode === 'focused' ? 'FOCUS_TASK' : 'GUIDE_TASK' }])
+    }, [{ type: 'HIDE_NUDGE' }, { type: event.mode === 'focused' ? 'FOCUS_TASK' : 'GUIDE_TASK' }])
   }
   if (event.type === 'RETURN_FAILED' && state.phase === 'RETURNING') {
     return state.returnMode === 'focused'

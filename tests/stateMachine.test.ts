@@ -113,7 +113,7 @@ describe('study session reducer', () => {
       let state = checkin()
       const returning = reduce(state, { type: 'RETURN_REQUEST', mode }, 16_000)
       expect(returning.state.phase).toBe('RETURNING')
-      expect(returning.effects[0]?.type).toBe(mode === 'focused' ? 'FOCUS_TASK' : 'GUIDE_TASK')
+      expect(returning.effects).toContainEqual({ type: mode === 'focused' ? 'FOCUS_TASK' : 'GUIDE_TASK' })
       state = step(returning.state, { type: 'WINDOW_OBSERVED', window: doc, verdict: 'on', matchesTask: true }, 17_000)
       expect(state.phase).toBe('REENTRY')
       expect(step(state, { type: 'TICK' }, 17_799).ocrRequested).toBe(false)

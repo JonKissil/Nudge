@@ -26,10 +26,13 @@ export async function readActiveWindow(): Promise<WindowInfo | undefined> {
 
 export function startActiveWindowPoller(onChange: (window: WindowInfo | undefined) => void,
   onError: (message: string) => void,
-  readWindow: () => Promise<WindowInfo | undefined> = readActiveWindow): () => void {
+  readWindow: () => Promise<WindowInfo | undefined> = readActiveWindow,
+  intervalMs: () => number = () => 1000): () => void {
   let stopped = false, busy = false, previous = '', lastError = ''
+  let lastPollAt = -Infinity
   const poll = async (): Promise<void> => {
-    if (stopped || busy) return
+    if (stopped || busy || performance.now() - lastPollAt < intervalMs()) return
+    lastPollAt = performance.now()
     busy = true
     try {
       const window = await readWindow()
@@ -45,7 +48,7 @@ export function startActiveWindowPoller(onChange: (window: WindowInfo | undefine
       if (previous !== 'null') { previous = 'null'; onChange(undefined) }
     } finally { busy = false }
   }
-  const timer = setInterval(() => { void poll() }, 1000)
+  const timer = setInterval(() => { void poll() }, 500)
   void poll()
   return () => { stopped = true; clearInterval(timer) }
 }

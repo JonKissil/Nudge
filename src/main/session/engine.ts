@@ -16,12 +16,20 @@ export class StudyEngine {
   }
 
   async dispatch(event: StudyEvent, now = this.clock()): Promise<ActionResult> {
+    // Save first: a failed write must leave the check-in intact, and an in-flight write
+    // must never roll back a later Pause/End or briefly resume drift detection.
+    if (event.type === 'ALLOW_CURRENT' && this.state.phase === 'CHECKIN') {
+      const outcome = await executeEffect({ type: 'ALLOW_WINDOW' }, this.state, this.ports)
+      if (!outcome.ok) return outcome
+      if (this.state.phase !== 'CHECKIN') return { ok: true }
+    }
     const previous = this.state
     const result = reduce(previous, event, now)
     this.state = result.state
     if (this.state !== previous) this.onState(this.state, previous)
 
     for (const effect of result.effects) {
+      if (event.type === 'ALLOW_CURRENT' && effect.type === 'ALLOW_WINDOW') continue
       const outcome = await executeEffect(effect, this.state, this.ports)
       if (!outcome.ok) {
         if (event.type === 'ALLOW_CURRENT' || event.type === 'PIN_STEP') {
@@ -55,7 +63,10 @@ export function createStudyToolHandlers(engine: StudyEngine): ToolHandlers {
       ? engine.dispatch({ type: 'MODEL_STATUS', status })
       : Promise.resolve({ ok: false, error: 'No screen check is pending.' }),
     reportStatusFailed: async () => { await engine.dispatch({ type: 'CHECK_FAILED' }) },
-    focusTaskWindow: () => only('CHECKIN', { type: 'RETURN_REQUEST', mode: 'focused' }),
+    focusTaskWindow: () => engine.state.phase === 'CHECKIN'
+      || (engine.state.phase === 'RETURNING' && engine.state.returnMode === 'guided')
+      ? engine.dispatch({ type: 'RETURN_REQUEST', mode: 'focused' })
+      : Promise.resolve({ ok: false, error: 'A return is already running or no check-in is open.' }),
     guideToTask: () => only('CHECKIN', { type: 'RETURN_REQUEST', mode: 'guided' }),
     pinNextStep: ({ text, line_id }) => only('REENTRY', { type: 'PIN_STEP', text, lineId: line_id }),
     snooze: ({ minutes }) => only('CHECKIN', { type: 'SNOOZE', minutes }),

@@ -81,6 +81,7 @@ export const NoteViewSchema = z.strictObject({
 export type NoteView = z.infer<typeof NoteViewSchema>
 export const OverlayStateSchema = z.strictObject({
   pill: PillStateSchema, nudge: NudgeViewSchema.optional(), arrow: ArrowViewSchema.optional(),
+  guidance: NudgeViewSchema.optional(),
   notes: z.array(NoteViewSchema), caption: z.string().optional(),
 })
 export type OverlayState = z.infer<typeof OverlayStateSchema>

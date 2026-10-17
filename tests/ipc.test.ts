@@ -36,6 +36,8 @@ describe('IPC boundaries', () => {
     const state = { pill: { state: 'FOCUSED', offline: false }, notes: [] }
     expect(schema.safeParse(state).success).toBe(true)
     expect(schema.safeParse({ ...state, arrow: { x: 1.1, y: 0.3, label: 'Your essay' } }).success).toBe(false)
+    expect(schema.safeParse({ ...state, guidance: { text: 'Click: History essay' } }).success).toBe(true)
+    expect(schema.safeParse({ ...state, guidance: { text: '' } }).success).toBe(false)
   })
 
   it('keeps empty commands and settings strict', () => {

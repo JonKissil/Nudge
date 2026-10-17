@@ -103,6 +103,13 @@ export class ScreenCapture {
     if (!this.wanted || !this.stream || !this.video.videoWidth) return
     const generation = this.generation
     try {
+      // At 1 fps the video can still show the previous tab. Wait for a fresh frame
+      // before OCR; a static desktop may deliver none, so bound the wait.
+      await new Promise<void>((resolve) => {
+        const callback = this.video.requestVideoFrameCallback(() => { clearTimeout(timer); resolve() })
+        const timer = setTimeout(() => { this.video.cancelVideoFrameCallback(callback); resolve() }, 1200)
+      })
+      if (!this.wanted || generation !== this.generation) return
       const canvas = new OffscreenCanvas(this.video.videoWidth, this.video.videoHeight)
       const context = canvas.getContext('2d')
       if (!context) throw new Error('Canvas unavailable')
