@@ -75,6 +75,8 @@ completed components; M8 has a draft deck and script.
 - [x] `prompts.ts` system instruction + turn templates (§6.4, §6.6)
 - [x] Requested session language picker: selected BCP-47 code reaches Live input transcription config
   and the spoken-language instruction (boundary, reducer, and transport tests; multilingual audio still needs a listening check)
+- [x] Language choices use their native names/scripts in Settings, with language/direction metadata
+  (all ten rendered choices verified; typecheck, 138 tests, lint, build, and dev launch passed)
 - [x] `tools.ts`: NON_BLOCKING declarations, zod validation, state-machine handlers, and response scheduling (SILENT verified live)
 - [x] Media window audio: gated 16 kHz mic worklet and 24 kHz playback; interruption flush routed (Terminal voice check + bridge tests)
 - [x] Output transcription → `Captions` (bridge tests, overlay preview, and real output transcription)
