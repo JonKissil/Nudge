@@ -32,6 +32,7 @@ export class GeminiLiveClient implements LiveClient {
   private checkinActive = false
   private frameForCheck?: string
   private activeCheckId?: string
+  private activeReviewId?: string
   private checkingSilently = false
   private checkTimer?: ReturnType<typeof setTimeout>
   private warmLanguage?: LanguageCode
@@ -135,6 +136,7 @@ export class GeminiLiveClient implements LiveClient {
     clearTimeout(this.checkTimer)
     this.frameForCheck = undefined
     this.activeCheckId = undefined
+    this.activeReviewId = undefined
     this.checkingSilently = false
     this.recovery = undefined
     this.emit({ type: 'connection', state: 'disconnected' })
@@ -147,6 +149,14 @@ export class GeminiLiveClient implements LiveClient {
     }
     this.turns.push(turn)
     this.flushTurns()
+  }
+
+  trySendHabitReview(turn: LiveTurn): boolean {
+    if (turn.tag !== 'HABIT_REVIEW' || !turn.reviewId || !this.session || !this.context
+      || this.context.state !== 'FOCUSED' || this.connectionState !== 'connected' || this.checkinActive
+      || this.awaitingTurn || this.modelSpeaking || this.turns.length || this.responses.length || this.audio.length) return false
+    this.sendTurn(turn)
+    return true
   }
 
   sendFrame(jpegBase64: string): void {
@@ -164,6 +174,7 @@ export class GeminiLiveClient implements LiveClient {
 
   sendAudio(pcm16Base64: string): void {
     this.checkingSilently = false
+    this.activeReviewId = undefined
     if (this.session) {
       try {
         this.session.sendRealtimeInput({ audio: { data: pcm16Base64, mimeType: 'audio/pcm;rate=16000' } })
@@ -240,6 +251,7 @@ export class GeminiLiveClient implements LiveClient {
     this.modelSpeaking = false
     clearTimeout(this.checkTimer)
     this.activeCheckId = undefined
+    this.activeReviewId = undefined
     this.emit({ type: 'connection', state: 'connected', resumed: Boolean(handle) })
     this.flushResponses()
     if (this.latestFrame) session.sendRealtimeInput({ video: { data: this.latestFrame, mimeType: 'image/jpeg' } })
@@ -258,6 +270,7 @@ export class GeminiLiveClient implements LiveClient {
     this.modelSpeaking = false
     clearTimeout(this.checkTimer)
     this.activeCheckId = undefined
+    this.activeReviewId = undefined
     this.emit({ type: 'connection', state: 'reconnecting' })
     const promise = this.recover(Boolean(this.handle), lifecycleId)
     this.recovery = { lifecycleId, promise }
@@ -301,7 +314,12 @@ export class GeminiLiveClient implements LiveClient {
     }
     if (message.goAway) { void this.beginRecovery(); return }
     for (const call of message.toolCall?.functionCalls ?? []) {
-      if (call.id && call.name) this.emit({ type: 'tool-call', call: { id: call.id, name: call.name, args: call.args ?? {} } })
+      if (!call.id || !call.name) continue
+      if ((this.activeReviewId && call.name !== 'propose_grace_period')
+        || (call.name === 'propose_grace_period' && !this.activeReviewId)) {
+        this.sendToolResponse({ id: call.id, name: call.name, scheduling: 'silent',
+          response: { ok: false, error: 'This tool is unavailable for the current turn.' } })
+      } else this.emit({ type: 'tool-call', call: { id: call.id, name: call.name, args: call.args ?? {} } })
     }
     const content = message.serverContent
     if (!content) return
@@ -325,6 +343,7 @@ export class GeminiLiveClient implements LiveClient {
       const checkId = this.activeCheckId
       clearTimeout(this.checkTimer)
       this.activeCheckId = undefined
+      this.activeReviewId = undefined
       this.awaitingTurn = false
       // A completed CHECK without report_status must not latch drift detection forever.
       if (checkId) this.emit({ type: 'check-complete', checkId })
@@ -343,7 +362,11 @@ export class GeminiLiveClient implements LiveClient {
         this.modelSpeaking || this.awaitingTurn || (this.checkinActive && next.tag !== 'NUDGE')
       ))) return
       this.turns.shift()
-      if (next.turnComplete) { this.activeCheckId = next.checkId; this.checkingSilently = next.tag === 'CHECK' }
+      if (next.turnComplete) {
+        this.activeCheckId = next.checkId
+        this.activeReviewId = next.reviewId
+        this.checkingSilently = next.tag === 'CHECK' || next.tag === 'HABIT_REVIEW'
+      }
       try {
         const parts: Part[] = [{ text: next.text }]
         // Bind the image to this CHECK: separate media/text streams have no ordering guarantee.
@@ -359,6 +382,9 @@ export class GeminiLiveClient implements LiveClient {
         this.awaitingTurn = true
         if (next.checkId) this.checkTimer = setTimeout(() => {
           if (this.activeCheckId === next.checkId) void this.beginRecovery()
+        }, DEFAULTS.checkTimeoutMs)
+        else if (next.reviewId) this.checkTimer = setTimeout(() => {
+          if (this.activeReviewId === next.reviewId) void this.beginRecovery()
         }, DEFAULTS.checkTimeoutMs)
         this.checkTimer?.unref()
         return

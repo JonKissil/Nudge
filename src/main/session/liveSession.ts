@@ -63,6 +63,7 @@ export class LiveSessionBridge {
 
   updateContext(context: LiveSessionContext): void { if (this.active) this.client.updateContext(context) }
   sendTurn(turn: LiveTurn): void { if (this.active) this.client.sendTurn(turn) }
+  trySendHabitReview(turn: LiveTurn): boolean { return this.active && !this.micOpen && this.client.trySendHabitReview(turn) }
   sendFrame(jpegBase64: string): void { if (this.active) this.client.sendFrame(jpegBase64) }
   sendMicChunk(pcm16Base64: string): void { if (this.active && this.micOpen) this.client.sendAudio(pcm16Base64) }
   setCheckinActive(active: boolean): void { this.client.setCheckinActive(active) }

@@ -13,6 +13,7 @@ export function DevHud({ snapshot }: { snapshot: SessionSnapshot }) {
         <div><dt>Microphone</dt><dd>{snapshot.micOpen ? 'listening' : 'off'}</dd></div>
         <div><dt>Rule</dt><dd>{stats.ruleVerdict ?? '—'}</dd></div>
         <div><dt>Frames/min</dt><dd>{stats.framesPerMinute}</dd></div>
+        <div><dt>Grace period</dt><dd>{Math.round((stats.graceMs ?? 90_000) / 1000)}s</dd></div>
         <div><dt>Screen capture</dt><dd>{stats.capture?.state ?? 'off'}{stats.capture?.error ? ` · ${stats.capture.error}` : ''}</dd></div>
         <div><dt>Resume handle</dt><dd>{handleAge}</dd></div>
       </dl>

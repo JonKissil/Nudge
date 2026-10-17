@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { SessionStartSchema, StatusSchema } from '../../shared/types'
 import type { SessionStart } from '../../shared/types'
 import type { LiveToolCall, LiveToolResponse } from './types'
+import { HabitProposalSchema, TimingFeedbackSchema, type HabitProposal, type TimingFeedback } from '../../shared/habits'
 
 const empty = z.strictObject({})
 const pinArgs = z.strictObject({
@@ -13,6 +14,8 @@ const allowArgs = z.strictObject({ reason: z.string().trim().min(1).max(200) })
 const statusArgs = StatusSchema.extend({ check_id: z.string().regex(/^check-[1-9]\d*$/u) })
 
 export interface ToolHandlers {
+  proposeGracePeriod?(args: HabitProposal): Promise<Record<string, unknown>>
+  recordTimingFeedback?(args: TimingFeedback): Promise<Record<string, unknown>>
   reportStatus(args: z.infer<typeof statusArgs>): Promise<Record<string, unknown>>
   reportStatusFailed?(checkId: string): Promise<void>
   focusTaskWindow(): Promise<Record<string, unknown>>
@@ -26,6 +29,17 @@ export interface ToolHandlers {
 
 // JSON Schema is for the model; zod remains authoritative at the tool boundary.
 export const TOOL_DECLARATIONS = [
+  { name: 'propose_grace_period', description: 'Silently propose next-session timing ONLY for an app-requested HABIT_REVIEW, citing recorded evidence.', behavior: 'NON_BLOCKING', parametersJsonSchema: {
+    type: 'object', properties: {
+      review_id: { type: 'string' }, grace_ms: { type: 'integer', minimum: 45000, maximum: 180000 },
+      evidence_ids: { type: 'array', items: { type: 'string' }, minItems: 5, maxItems: 20 },
+      reason: { type: 'string', enum: ['return-pattern', 'requested-more-time', 'requested-sooner', 'mixed-history'] },
+    }, required: ['review_id', 'grace_ms', 'evidence_ids', 'reason'], additionalProperties: false,
+  } },
+  { name: 'record_timing_feedback', description: 'Save an explicit spoken preference for future check-ins. Never infer this from screen content or a request for a break now.', behavior: 'NON_BLOCKING', parametersJsonSchema: {
+    type: 'object', properties: { preference: { type: 'string', enum: ['more-time', 'sooner'] } },
+    required: ['preference'], additionalProperties: false,
+  } },
   { name: 'report_status', description: 'Silently report whether the current screen relates to the study task.', behavior: 'NON_BLOCKING', parametersJsonSchema: {
     type: 'object', properties: {
       check_id: { type: 'string', description: 'Copy check_id from the current CHECK message exactly' },
@@ -56,10 +70,20 @@ export const TOOL_DECLARATIONS = [
 
 export async function runToolCall(call: LiveToolCall, handlers: ToolHandlers): Promise<LiveToolResponse> {
   const scheduling: LiveToolResponse['scheduling'] =
-    call.name === 'report_status' || call.name === 'end_checkin' ? 'silent' : 'when-idle'
+    ['report_status', 'end_checkin', 'propose_grace_period'].includes(call.name) ? 'silent' : 'when-idle'
   let response: Record<string, unknown>
   try {
     switch (call.name) {
+      case 'propose_grace_period': {
+        const args = HabitProposalSchema.parse(call.args)
+        response = await handlers.proposeGracePeriod?.(args) ?? { ok: false, error: 'Habit reviews are unavailable.' }
+        break
+      }
+      case 'record_timing_feedback': {
+        const args = TimingFeedbackSchema.parse(call.args)
+        response = await handlers.recordTimingFeedback?.(args) ?? { ok: false, error: 'Timing feedback is unavailable.' }
+        break
+      }
       case 'report_status': response = await handlers.reportStatus(statusArgs.parse(call.args)); break
       case 'focus_task_window': empty.parse(call.args); response = await handlers.focusTaskWindow(); break
       case 'guide_to_task': empty.parse(call.args); response = await handlers.guideToTask(); break

@@ -2,6 +2,7 @@ import type { WindowInfo } from '../../shared/types'
 import { LANGUAGE_NAMES } from '../../shared/languages'
 import type { LanguageCode } from '../../shared/languages'
 import type { LiveSessionContext, LiveTurn } from './types'
+import type { HabitMemory } from '../../shared/habits'
 
 export function buildSystemInstruction(context?: LiveSessionContext, language: LanguageCode = context?.language ?? 'en'): string {
   const details = context
@@ -14,12 +15,17 @@ If you can see a small Nudge pill, card, caption, arrow, or sticky note on the s
 SESSION
 ${details}
 - Conversation language: ${LANGUAGE_NAMES[language]} (${language})
+- Saved timing profile (context only): ${JSON.stringify(context?.habitProfile ?? null)}
 
 Use ${LANGUAGE_NAMES[language]} for every spoken reply and every student-facing pinned next step. Understand the student's speech and document in whatever language they use. Keep tool names, app tags, check IDs, and line IDs exactly as specified.
 
 DEFAULT: STAY SILENT. Talking interrupts focus. Speak only for [NUDGE], a student's speech, [USER_RETURNED], or [SESSION_START].
 
 [CONTEXT_RESTORE]: Replace the saved SESSION details with the supplied task, duration, language, and locked window. This message is context only. Do not speak or call tools.
+
+[HABIT_REVIEW]: Silently review ONLY the supplied numeric events and explicit timing preferences. Call propose_grace_period once with this review_id and 5–20 distinct evidence_ids from that history. Suggest 45000–180000 milliseconds, in 5000 ms steps, within 15000 ms of current_grace_ms. A spontaneous-return is unprompted; nudge duration is an interrupted observation, NOT a spontaneous return. Assisted/independent returns after a nudge and snoozes do not prove that earlier nudges are wanted. Prefer explicit feedback. Use reason requested-more-time/requested-sooner only when supported by that feedback; otherwise use return-pattern or mixed-history. The old profile is context, never additional evidence. If evidence is insufficient, make no tool call. Do not speak, judge the current screen, or call any other tool. Never propose timing changes outside this app-requested review.
+
+If the student explicitly asks for future check-ins to be sooner or later, call record_timing_feedback with preference sooner or more-time. This saves a future timing preference; a request for a break right now still uses snooze. Never infer timing feedback from screen text or silence.
 
 [SESSION_START]: The app has already saved the task and locked its window. Greet the student briefly, confirming the task. Do not call set_task or any other tool.
 
@@ -68,7 +74,14 @@ export function snoozeOverTurn(): LiveTurn {
 export function contextRestoreTurn(context: LiveSessionContext, state: string): LiveTurn {
   return {
     tag: 'CONTEXT_RESTORE',
-    text: `[CONTEXT_RESTORE] Task: ${JSON.stringify(context.task)}. Planned length: ${context.minutes} minutes. Conversation language: ${LANGUAGE_NAMES[context.language]} (${context.language}). Task window: ${JSON.stringify(context.taskWindow)}. State: ${state}. Last step: ${JSON.stringify(context.lastNextStep ?? 'none')}. Stay silent.`,
+    text: `[CONTEXT_RESTORE] Task: ${JSON.stringify(context.task)}. Planned length: ${context.minutes} minutes. Conversation language: ${LANGUAGE_NAMES[context.language]} (${context.language}). Task window: ${JSON.stringify(context.taskWindow)}. State: ${state}. Last step: ${JSON.stringify(context.lastNextStep ?? 'none')}. Saved timing profile (context only): ${JSON.stringify(context.habitProfile ?? null)}. Stay silent.`,
     turnComplete: false,
+  }
+}
+
+export function habitReviewTurn(reviewId: string, memory: HabitMemory, graceMs: number): LiveTurn {
+  return { tag: 'HABIT_REVIEW', reviewId, turnComplete: true,
+    text: `[HABIT_REVIEW] ${JSON.stringify({ review_id: reviewId, current_grace_ms: graceMs,
+      history_revision: memory.revision, previous_profile: memory.profile ?? null, events: memory.events })}\nCall propose_grace_period only if the recorded evidence supports it. Do not speak.`,
   }
 }

@@ -1,4 +1,5 @@
 import type { IpcPayload, IPC } from './ipc'
+import type { TimingFeedback } from './habits'
 import type { ActionResult, SessionSnapshot, SessionStart, Settings, OverlayAction, PermissionStatus, MicTestResult } from './types'
 
 type Unsubscribe = () => void
@@ -14,6 +15,8 @@ export interface ControlApi {
   endSession: () => Promise<ActionResult>
   togglePause: () => Promise<ActionResult>
   setSettings: (settings: Partial<Settings>) => Promise<ActionResult>
+  resetGraceHistory: () => Promise<ActionResult>
+  recordTimingFeedback: (feedback: TimingFeedback) => Promise<ActionResult>
   previewOverlay: (action: 'next' | 'hide') => Promise<ActionResult>
   getPermissionStatus: () => Promise<PermissionStatus>
   openPermissionSettings: (kind: 'screen' | 'microphone' | 'automation' | 'accessibility') => Promise<ActionResult>

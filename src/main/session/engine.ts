@@ -10,7 +10,7 @@ export class StudyEngine {
   constructor(
     config: StudyConfig,
     private readonly ports: EffectPorts,
-    private readonly onState: (state: StudyState, previous: StudyState) => void = () => {},
+    private readonly onState: (state: StudyState, previous: StudyState, event: StudyEvent) => void = () => {},
     private readonly clock: () => number = Date.now,
   ) {
     this.state = createStudyState(config)
@@ -29,7 +29,7 @@ export class StudyEngine {
     if ((previous.phase !== 'REENTRY' && result.state.phase === 'REENTRY') || event.type === 'START_SETUP') this.reentryVersion++
     const reentryVersion = this.reentryVersion
     this.state = result.state
-    if (this.state !== previous) this.onState(this.state, previous)
+    if (this.state !== previous) this.onState(this.state, previous, event)
 
     for (const effect of result.effects) {
       if (event.type === 'LOCK_WINDOW' && (reentryVersion !== this.reentryVersion
@@ -42,7 +42,7 @@ export class StudyEngine {
         if ((event.type === 'ALLOW_CURRENT' || event.type === 'PIN_STEP') && this.state === result.state) {
           const failed = this.state
           this.state = previous
-          this.onState(this.state, failed)
+          this.onState(this.state, failed, event)
         } else if (event.type === 'RETURN_REQUEST' || event.type === 'RETURN_FAILED') {
           await this.dispatch({ type: 'RETURN_FAILED' }, now)
         }

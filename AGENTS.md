@@ -80,7 +80,9 @@ Generality (Windows, other browsers, multi-monitor) comes later and is out of sc
 - **The model doesn't decide *when* to talk; the app does.** The model responds to turns, not frames. The app sends tagged
   text turns (§6.4); the model reports status through a tool call silently and speaks only on `[NUDGE]`,
   when the student talks, or on `[USER_RETURNED]`.
-- **The app owns time.** Grace periods, snoozes, and nudge rate limits are deterministic code, never model judgment.
+- **The app owns time.** Grace periods, snoozes, and nudge rate limits run in deterministic code.
+  Requested habit learning allows Gemini to recommend next-session grace timing; local evidence checks
+  and bounds decide whether to accept it. The active session's timing remains fixed.
 - **Deterministic first, model second.** Window rules settle the easy cases; the model only judges ambiguous screens.
 - **The Live session runs in main (Node)**, not the renderer, so the API key never reaches a renderer and we can set
   `apiVersion: 'v1beta'` without ephemeral-token constraints. Proactive audio is permanently enabled on
@@ -249,6 +251,7 @@ about these tags in the system instruction.
 |---|---|---|---|
 | `[SESSION_START]` | Session connected | true | One short greeting confirming the task (e.g. "Got it, history essay for 45. I'm here."). |
 | `[CHECK]` | Each tick when rules say `ask` | true | Call `report_status`. **No speech.** |
+| `[HABIT_REVIEW]` | Optional idle review of numeric history after lock | true | Call `propose_grace_period` only with recorded evidence. **No speech.** |
 | `[NUDGE]` | Grace period exceeded | true | One gentle sentence, then wait for the student. |
 | `[USER_RETURNED]` + `[DOC_LINES]` | Student is back in the task window after a check-in | true | Call `pin_next_step`, then say one short sentence. |
 | `[ARRIVED]` | Guided return succeeded | (sent together with `USER_RETURNED`) | Same as above. |
@@ -270,6 +273,8 @@ On invalid arguments, reply `{ ok: false, error }`. Never throw. Always send a t
 | Tool | Args | App action | Response scheduling |
 |---|---|---|---|
 | `report_status` | `check_id: string` (copied from `[CHECK]`), `on_task: boolean`, `activity: string` (≤8 words), `confidence: number` (0–1) | Feed to the state machine only if this check is still current. | **SILENT** (the model must not narrate) |
+| `propose_grace_period` | `review_id`, `grace_ms`, 5–20 `evidence_ids`, bounded reason enum | Validate against the current requested review and save for the next session. | SILENT |
+| `record_timing_feedback` | `preference: 'more-time' \| 'sooner'` | Save only an explicit recent gated spoken request; Settings has equivalent buttons. | WHEN_IDLE |
 | `focus_task_window` | — | `os/focus.ts` switches to the task window or tab. Go to `RETURNING`. | WHEN_IDLE |
 | `guide_to_task` | — | Overlay shows an arrow or card toward the task tab; poll for arrival. Go to `RETURNING(guided)`. | WHEN_IDLE |
 | `pin_next_step` | `text: string` (≤120 chars), `line_id: string` (`"L7"` or `"none"`) | Overlay sticky note anchored to that OCR line (or the window's margin). Go to `FOCUSED`. | WHEN_IDLE |
@@ -403,6 +408,39 @@ export const DEMO = { ...DEFAULTS, tickMs: 4_000, graceMs: 15_000, checkinSilenc
   (`/document/d/<id>`). Otherwise match on origin + path.
 - **Other apps:** match on `bundleId`, and the title must contain the locked title's first ~20 characters (case-insensitive).
 - **Allow-list entries** are stored as `{ kind: 'url-prefix' | 'bundle', value }`.
+
+### 7.5 Adaptive grace period (requested stretch)
+
+- Enabled by default, with opt-out and **Reset learned timing** on Settings. Until five valid samples,
+  use the normal 90-second grace. Choose timing during setup and keep it fixed for the active session;
+  preference/history changes apply to the next session. Explicit demo-mode changes retain their existing behavior.
+- Learn only from uninterrupted `FOCUSED → DRIFTING → FOCUSED` episodes ending in a deterministic
+  match to the locked task before any nudge. Ignore pauses, snoozes, prompted returns, allowances,
+  unavailable windows, and switches shorter than five seconds. Demo sessions neither adapt nor learn.
+- Store only the latest 20 numeric return durations in the existing local JSON, without task text,
+  window details, or timestamps. The store retains old allow-lists/task checkpoints and serializes writes.
+  A malformed timing history resets independently of the allow-list.
+- Select the 75th-percentile return duration plus 15 seconds, round up to five seconds, and clamp to
+  45–180 seconds. `shared/grace.ts` chooses timing; `session/graceLearning.ts` is the pure observation
+  reducer. Main handles persistence. The deterministic grace timer and nudge rate limit still own speech.
+- Requested Gemini refinement is enabled alongside adaptive timing, with a separate Settings switch.
+  Keep at most 60 numeric episode/feedback records, random IDs, a revision, and one accepted profile in
+  the existing JSON. Do not store task/window details, transcripts, frames, audio, or timestamps in this
+  history. A nudge is an interrupted observation, not a spontaneous return; replace its record with its
+  eventual independent/assisted return. Only explicit snoozes count as break requests.
+- Review at most once per study session, after 30 seconds and at least five records (three new revisions
+  after an accepted profile). Only review on the locked task while FOCUSED, connected, mic closed, and
+  without a pending check or model generation. Use the existing connection; never queue an optional review
+  ahead of a normal turn. Suppress review audio/captions and reject other tools from a review. A ten-second
+  watchdog recovers a stalled generation before queued critical turns continue.
+- Zod validates proposals, and local policy checks distinct existing evidence IDs and the reason. Return-based
+  recommendations require five spontaneous returns and must remain near their percentile baseline;
+  explicit preference reasons require matching recorded feedback. Clamp accepted changes to 15 seconds
+  per session and 45–180 seconds overall. Reject stale IDs/revisions, expired reviews, and results after
+  Pause, End, reset, opt-out, or a foreground/check-in change. Profiles are context, never new evidence.
+  Without an accepted profile, Gemini failure leaves the local algorithm in use; disabling Gemini always
+  uses it. Reset clears both histories/profile and invalidates pending
+  reviews; it never changes the active session's timer. Demo does not collect history or run reviews.
 
 ---
 

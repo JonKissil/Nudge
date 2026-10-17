@@ -4,6 +4,11 @@ import { join } from 'node:path'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { z } from 'zod'
 import { DEFAULTS, DEMO, DEMO_TASK } from '../../shared/config'
+import { observeGraceReturn } from './graceLearning'
+import { selectHabitGraceMs, type HabitEvent, type TimingFeedback } from '../../shared/habits'
+import { observeHabitEpisode, type HabitEpisode } from './habitEvents'
+import { HabitReviewer } from './habitReview'
+import { matchWindow } from '../drift/matchWindow'
 import { EmptySchema, IPC, IpcSchemas, type IpcChannel, type IpcPayload } from '../../shared/ipc'
 import { ActionResultSchema, MicTestResultSchema, OverlayStateSchema, SessionSnapshotSchema, WindowInfoSchema } from '../../shared/types'
 import type {
@@ -54,7 +59,7 @@ export function registerScaffoldIpc(
   let snapshot: SessionSnapshot = SessionSnapshotSchema.parse({
     state: 'IDLE', conn: 'disconnected', task: demoMode ? DEMO_TASK : '', minutes: 30, language: 'en',
     overlayPreview: 'hidden',
-    settings: { demoMode, showHud: demoMode },
+    settings: { demoMode, showHud: demoMode, adaptiveGrace: true },
     stats: { framesPerMinute: 0, resumptionHandleAgeMs: null, transitions: [], logs: [], capture: { state: 'off' } },
   })
   let previewOverlay: OverlayState = createOverlayPreview('hidden', Date.now())
@@ -73,6 +78,9 @@ export function registerScaffoldIpc(
   let checkinMicOpen = false
   let pushToTalkOpen = false
   let endingSession: Promise<ActionResult> | undefined
+  let learningSince: number | undefined
+  let habitEpisode: HabitEpisode | undefined
+  let lastStudentSpeechAt = 0
   const snapshotListeners = new Set<(snapshot: SessionSnapshot) => void>()
 
   const isSender = (sender: Electron.WebContents, kind: keyof AppWindows): boolean =>
@@ -136,7 +144,9 @@ export function registerScaffoldIpc(
   }
 
   const ports: EffectPorts = {
-    startLive: (context) => live.start(context), stopLive: () => live.stop(),
+    startLive: (context) => live.start({ ...context,
+      habitProfile: store.adaptiveGrace && store.geminiGrace && !snapshot.settings.demoMode ? store.habits.profile : undefined,
+    }), stopLive: () => live.stop(),
     sendTurn: (turn) => { if (snapshot.conn !== 'degraded') live.sendTurn(turn) }, setMicOpen: (open) => {
       checkinMicOpen = open
       syncMic()
@@ -181,7 +191,28 @@ export function registerScaffoldIpc(
       log('Current page or app added to the saved allow-list.')
     },
   }
-  const study = new StudyEngine(demoMode ? DEMO : DEFAULTS, ports, (state, previous) => {
+  const saveHabitEvent = (event: HabitEvent): void => {
+    void store.recordHabitEvent(event).then(() => { refreshHabitStats(); publish() })
+      .catch(() => log('Timing history could not be saved.'))
+  }
+  const study = new StudyEngine(demoMode ? DEMO : DEFAULTS, ports, (state, previous, event) => {
+    const learning = snapshot.settings.demoMode || snapshot.settings.adaptiveGrace === false
+      ? {} : observeGraceReturn(learningSince, previous, state, Date.now())
+    learningSince = learning.since
+    const habits = snapshot.settings.demoMode || !store.adaptiveGrace || !store.geminiGrace ? {}
+      : observeHabitEpisode(habitEpisode, previous, state, event, Date.now(), randomUUID())
+    habitEpisode = habits.episode
+    if (habits.event) saveHabitEvent(habits.event)
+    if (previous.phase === 'SETUP' && state.phase === 'FOCUSED') habitReviewer.startSession()
+    if (state.phase !== 'FOCUSED' || state.checkPending) habitReviewer.cancel()
+    if (['SETUP', 'PAUSED', 'ENDED'].includes(state.phase)) lastStudentSpeechAt = 0
+    if (learning.durationMs !== undefined) {
+      void store.recordGraceReturn(learning.durationMs).then(() => {
+        snapshot = { ...snapshot, stats: { ...snapshot.stats, graceSamples: store.graceHistory.length } }
+        refreshHabitStats()
+        publish()
+      }).catch(() => log('Return timing could not be saved. Your current session is unchanged.'))
+    }
     if (state.phase === 'REENTRY' && previous.phase !== 'REENTRY') {
       document.reset()
       sessionNotes = []
@@ -192,10 +223,12 @@ export function registerScaffoldIpc(
     if (state.taskWindow) live.updateContext({
       task: state.task, minutes: state.minutes, language: state.language, taskWindow: state.taskWindow,
       state: state.phase, lastNextStep: state.lastNextStep,
+      habitProfile: store.adaptiveGrace && store.geminiGrace && !snapshot.settings.demoMode ? store.habits.profile : undefined,
     })
     snapshot = { ...snapshot, state: state.phase, task: state.task, minutes: state.minutes, language: state.language,
       taskWindow: state.taskWindow, lastStatus: state.lastStatus,
       stats: { ...snapshot.stats, currentWindow: state.currentWindow,
+        graceMs: state.config.graceMs, graceSamples: store.graceHistory.length,
         transitions: state.phase === previous.phase ? snapshot.stats.transitions
           : [...snapshot.stats.transitions, { from: previous.phase, to: state.phase, at: Date.now() }].slice(-10),
       },
@@ -205,14 +238,40 @@ export function registerScaffoldIpc(
     if (previous.phase === 'SETUP' && state.phase === 'FOCUSED' && state.taskWindow) recovery.start(state.taskWindow)
     if (state.phase === 'ENDED' || (state.phase === 'SETUP' && previous.phase !== 'SETUP')) recovery.stop()
   })
-  const live = new LiveSessionBridge(new GeminiLiveClient(), createStudyToolHandlers(study), {
+  const recordTimingFeedback = async ({ preference }: TimingFeedback): Promise<ActionResult> => {
+    if (snapshot.settings.demoMode || !store.adaptiveGrace || !store.geminiGrace) {
+      return { ok: false, error: 'Enable Gemini timing reviews outside demo mode to save feedback.' }
+    }
+    if (!['FOCUSED', 'DRIFTING', 'CHECKIN', 'SNOOZED'].includes(study.state.phase)) {
+      return { ok: false, error: 'Start or resume a session before giving timing feedback.' }
+    }
+    const saved = await store.recordHabitEvent({ id: randomUUID(), graceMs: study.state.config.graceMs,
+      kind: preference === 'more-time' ? 'feedback-more-time' : 'feedback-sooner' },
+    () => !snapshot.settings.demoMode && ['FOCUSED', 'DRIFTING', 'CHECKIN', 'SNOOZED'].includes(study.state.phase))
+    if (!saved) return { ok: false, error: 'Timing feedback was cancelled because the session or settings changed.' }
+    refreshHabitStats()
+    publish()
+    return { ok: true }
+  }
+  const live: LiveSessionBridge = new LiveSessionBridge(new GeminiLiveClient(), {
+    ...createStudyToolHandlers(study),
+    proposeGracePeriod: (proposal) => habitReviewer.propose(proposal),
+    recordTimingFeedback: (feedback) => {
+      if (!snapshot.micOpen || !lastStudentSpeechAt || Date.now() - lastStudentSpeechAt > 60_000) {
+        return Promise.resolve({ ok: false, error: 'Timing feedback requires a recent spoken request.' })
+      }
+      lastStudentSpeechAt = 0
+      return recordTimingFeedback(feedback)
+    },
+  }, {
     playAudio: (pcm24Base64) => getWindows()?.media.webContents.send(IPC.audioPlay, { pcm24Base64 }),
     flushAudio: () => getWindows()?.media.webContents.send(IPC.audioFlush, {}),
     resetAudio: () => getWindows()?.media.webContents.send(IPC.audioReset, {}),
     caption: (text) => { caption = text; publish() },
-    userSpeech: () => { void study.dispatch({ type: 'USER_SPEECH' }) },
+    userSpeech: () => { lastStudentSpeechAt = Date.now(); habitReviewer.cancel(); void study.dispatch({ type: 'USER_SPEECH' }) },
     micSet: (open) => getWindows()?.media.webContents.send(IPC.micSet, { open }),
     connection: (conn) => {
+      if (conn !== 'connected') habitReviewer.cancel()
       if (conn === 'disconnected') handleReceivedAt = undefined
       snapshot = { ...snapshot, conn,
         connectionIssue: conn === 'connected' || conn === 'disconnected' ? undefined : snapshot.connectionIssue }
@@ -259,6 +318,28 @@ export function registerScaffoldIpc(
     publish, log,
   })
   const store = new AppStore(join(app.getPath('userData'), 'state.json'), (message) => log(message))
+  snapshot = { ...snapshot, settings: { ...snapshot.settings, adaptiveGrace: store.adaptiveGrace, geminiGrace: store.geminiGrace } }
+  const nextGraceMs = (): number => selectHabitGraceMs(store.graceHistory, store.adaptiveGrace,
+    snapshot.settings.demoMode, store.geminiGrace, store.habits.profile)
+  const refreshHabitStats = (): void => {
+    snapshot = { ...snapshot, stats: { ...snapshot.stats, habitEvents: store.habits.events.length,
+      habitProfile: store.habits.profile, nextGraceMs: nextGraceMs() } }
+  }
+  const habitReviewer: HabitReviewer = new HabitReviewer({ store,
+    eligible: () => store.adaptiveGrace && store.geminiGrace && !snapshot.settings.demoMode
+      && snapshot.conn === 'connected' && !snapshot.micOpen && study.state.phase === 'FOCUSED'
+      && !study.state.checkPending && Boolean(study.state.currentWindow && study.state.taskWindow
+        && matchWindow(study.state.currentWindow, study.state.taskWindow)),
+    trySend: (turn) => live.trySendHabitReview(turn), saved: () => { refreshHabitStats(); publish() },
+  })
+  refreshHabitStats()
+  const applyGraceConfig = (): Promise<ActionResult> => {
+    refreshHabitStats()
+    return study.dispatch({ type: 'SET_CONFIG', config: {
+      ...(snapshot.settings.demoMode ? DEMO : DEFAULTS), graceMs: nextGraceMs(),
+    } })
+  }
+  const inSetup = (): boolean => ['IDLE', 'SETUP', 'ENDED'].includes(study.state.phase)
   const ocr = new OcrService(log)
   const returns = new ReturnActions({
     requestFullFrame: () => perception.requestFullFrame(),
@@ -278,6 +359,7 @@ export function registerScaffoldIpc(
     save: (task) => store.saveTaskTab(task), log,
   })
   app.once('before-quit', () => { live.dispose(); document.reset(); returns.dispose(); ocr.dispose(); recovery.dispose(); perception.dispose() })
+  void applyGraceConfig()
   // Open the API while the student fills out setup; screen/mic forwarding still requires a locked session.
   live.warmup()
 
@@ -295,6 +377,7 @@ export function registerScaffoldIpc(
           verdict: effectiveVerdict(observed.verdict, snapshot.conn) })
       }
     }
+    habitReviewer.consider(study.state.config.graceMs)
   }, 500).unref()
 
   const handle = <T>(channel: IpcChannel, schema: z.ZodType<T>, action: (payload: T) => ActionResult | Promise<ActionResult>): void => {
@@ -345,12 +428,14 @@ export function registerScaffoldIpc(
   })
   handle(IPC.sessionStart, IpcSchemas[IPC.sessionStart], async (input) => {
     await endingSession
+    await store.flush()
     if (snapshot.state !== 'IDLE' && snapshot.state !== 'ENDED' && snapshot.state !== 'SETUP') {
       return { ok: false, error: 'End the current session before starting another.' }
     }
     perception.cancelLock()
     snapshot = { ...snapshot, lockError: undefined }
     sessionNotes = []
+    await applyGraceConfig()
     const result = await study.dispatch({ type: 'START_SETUP', ...input })
     if (result.ok) live.warmup(study.state.language)
     return result
@@ -360,6 +445,7 @@ export function registerScaffoldIpc(
     const ending = (async () => {
       perception.cancelLock()
       const result = await study.dispatch({ type: 'END' })
+      await store.flush()
       sessionNotes = []
       publish()
       return result
@@ -378,19 +464,39 @@ export function registerScaffoldIpc(
   handle(IPC.sessionPauseToggle, EmptySchema, togglePause)
   handle(IPC.sessionLockWindow, EmptySchema, () => perception.lockWindow())
   handle(IPC.settingsSet, IpcSchemas[IPC.settingsSet], async (settings) => {
+    habitReviewer.cancel()
+    habitEpisode = undefined
+    if (settings.adaptiveGrace !== undefined) await store.setAdaptiveGrace(settings.adaptiveGrace)
+    if (settings.geminiGrace !== undefined) await store.setGeminiGrace(settings.geminiGrace)
     const next = { ...snapshot.settings, ...settings,
       ...(settings.demoMode === true ? { showHud: true } : {}) }
     snapshot = { ...snapshot, settings: next }
     if (settings.demoMode !== undefined) {
-      const config = next.demoMode ? DEMO : DEFAULTS
-      tickMs = config.tickMs
+      tickMs = next.demoMode ? DEMO.tickMs : DEFAULTS.tickMs
       lastCheckAt = Date.now()
-      await study.dispatch({ type: 'SET_CONFIG', config })
+      await applyGraceConfig()
       if (next.demoMode && snapshot.state === 'IDLE') snapshot = { ...snapshot, task: DEMO_TASK, minutes: 30 }
     }
+    if (settings.adaptiveGrace !== undefined || settings.geminiGrace !== undefined) {
+      learningSince = undefined
+      if (inSetup()) await applyGraceConfig()
+    }
+    refreshHabitStats()
     publish()
     return { ok: true }
   })
+  handle(IPC.graceReset, EmptySchema, async () => {
+    habitReviewer.cancel()
+    habitEpisode = undefined
+    learningSince = undefined
+    await store.resetGraceHistory()
+    snapshot = { ...snapshot, stats: { ...snapshot.stats, graceSamples: 0 } }
+    refreshHabitStats()
+    if (inSetup()) await applyGraceConfig()
+    publish()
+    return { ok: true }
+  })
+  handle(IPC.graceFeedback, IpcSchemas[IPC.graceFeedback], recordTimingFeedback)
   handle(IPC.overlayPreview, IpcSchemas[IPC.overlayPreview], ({ action }) => {
     if (app.isPackaged) return { ok: false, error: 'Overlay previews are available in development builds.' }
     const index = OVERLAY_PREVIEWS.indexOf(snapshot.overlayPreview ?? 'hidden')

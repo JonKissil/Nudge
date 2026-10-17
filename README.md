@@ -25,6 +25,20 @@ Nudge prepares a quiet Gemini Live connection when the app opens and reuses it a
 is locked. Saving a different language prepares that configuration during setup. Screen capture and
 microphone forwarding remain gated by the study session; a slow API handshake does not block capture
 or drift polling from starting.
+
+In **Settings → Learn my grace period**, Nudge can adapt its waiting time from your recent unprompted
+returns to the task. It starts at 90 seconds; after five observations it chooses 45–180 seconds for the
+next session. Timing stays fixed during a session. The last 20 unprompted return durations are saved
+on this Mac. **Let Gemini refine my timing** also keeps up to 60 numeric episode/feedback records and
+sends that summary through the existing Live connection for a silent review. It distinguishes spontaneous
+returns from nudges, assisted returns, and requested breaks. Use **Check in sooner** / **Give me more time**
+in Settings, or ask by voice during a check-in/push-to-talk, to express a future timing preference.
+Accepted recommendations need recorded evidence, stay within 45–180 seconds, change by at most 15 seconds
+per session, and apply to the next session. Settings shows that timing and its reason. Reviews wait until
+at least 30 seconds after lock, run only while focused on the task with the model idle, and never run
+during startup warmup, pause, demo, or offline mode. They store no screen, audio, task text, or page addresses.
+Disable Gemini reviews to keep the local percentile algorithm; disable learning entirely to use 90 seconds.
+**Reset learned timing** clears both histories and the saved recommendation. Demo stays at 15 seconds and does not learn.
 **Pause session** and **End session** are available in the control window; the overlay offers one-click
 actions during a check-in. The microphone stays off except during a check-in or push-to-talk.
 

@@ -189,7 +189,14 @@ completed components; M8 has a draft deck and script.
 - [ ] Several included base themes
 - [ ] Session recap (focused minutes, returns, steps completed; framed as wins)
 - [ ] Ambient "co-working" presence (quiet sounds or a small avatar)
-- [ ] Adaptive grace period from the student's history
+- [x] Adaptive grace period from the student's history: bounded local return-duration history,
+  per-session timing, Settings opt-out/reset, and unchanged demo timing (pure/integration tests,
+  desktop controls, and persistence across app restart verified)
+- [x] Requested Gemini habit learning: bounded episode/feedback history, silent reviews on the existing
+  connection, evidence validation, next-session timing, and Settings controls (pure/bridge/main-session
+  regressions, real Gemini synthetic-history review, and isolated desktop Settings verified)
+- [ ] Manual listening check for spoken future-timing feedback (gated transcription/tool routing tested;
+  actual student microphone recognition and acknowledgment still need a listening pass)
 - [ ] Packaged `.app` build (verify `get-windows` and the OCR helper inside the bundle)
 - [ ] Animation support
 
@@ -577,3 +584,40 @@ completed components; M8 has a draft deck and script.
   frames, and received a resumption handle during a controlled TextEdit test; the test session was ended.
   The cause of the earlier process's failure remains unknown. Typecheck, all 139 tests, lint, and the
   three-renderer development launch passed.
+- 2026-10-17 — Implemented adaptive grace timing from the last 20 local, numeric durations of
+  unprompted returns to the locked task. After five observations, use the 75th percentile plus 15s,
+  rounded up to five seconds and bounded to 45–180s; otherwise use 90s. Timing is selected during
+  setup and remains fixed during the active session. Pauses, unknown windows, snoozes, allowances,
+  nudges, and prompted/timed-out returns do not train it; demo stays 15s and does not learn.
+  Added Settings opt-out/reset, current timing in the HUD, backwards-compatible local storage,
+  bounded/serialized writes, and strict IPC. Pure tests cover observation eligibility and actual
+  grace expiry; storage tests cover concurrent updates, old/corrupt data, bounds, opt-out, and reset.
+  An isolated app with sample history selected 50s, switched to 90s on opt-out and 15s in demo,
+  reset to the default, and retained opt-out/reset across a full restart. No real student activity
+  was needed for this check. Typecheck, 160 tests, lint, build, dev launch, and diff checks passed.
+- 2026-10-17 — Added requested Gemini habit refinement around the deterministic grace timer. The
+  existing JSON now retains up to 60 numeric episode/feedback records, a revision, and one validated
+  profile. Nudges are recorded as interrupted observations; confirmed independent/assisted returns
+  replace that episode's nudge rather than training it as a spontaneous return. Explicit snoozes and
+  future-timing preferences are distinct; silence, unavailable windows, pause, demo, and opt-out do not
+  create inferred preferences. No task text, URLs, transcripts, screenshots, audio, or timestamps enter
+  this history. Existing return-duration history and allow-list/checkpoint data remain compatible.
+- 2026-10-17 — Habit reviews use the same Live connection, at most once per session after 30 seconds
+  and enough evidence, only while the locked task is focused and the model/mic/check queue is idle.
+  The transport suppresses review audio/captions, restricts review tool calls, and recovers a stalled
+  review before a queued critical turn. Proposed timing needs distinct recorded evidence and a supported
+  reason, stays within 45–180s, moves at most 15s per session, and applies only next session. Stale IDs,
+  revisions, reset/opt-out, pause/end, foreground changes, and expired reviews are rejected. The existing
+  percentile algorithm remains available without Gemini; demo remains fixed at 15s.
+- 2026-10-17 — Settings now shows Gemini refinement, the next timing and its reason, earlier/later
+  feedback buttons, and reset for both histories/profile. Spoken feedback uses a validated tool gated
+  by recent student transcription and an open microphone; repeated/ungated calls are rejected. Main-session
+  tests exercise automatic review scheduling, actual bridge/tool persistence, frozen active timing,
+  next-session adoption, reset, Settings/spoken feedback, and pause/demo/opt-out gates.
+  A real Gemini check used five synthetic return records, made one accepted 90s recommendation,
+  persisted it across store reload, and emitted zero audio/caption events with zero screen/mic input.
+  An isolated three-renderer dev instance displayed a seeded 105s profile/reason; Gemini opt-out
+  selected the 75s percentile baseline, full opt-out selected 90s, demo selected 15s, and reset cleared
+  both histories/profile. Strict feedback IPC, compact Settings layout, and zero pre-session capture/mic
+  forwarding passed. Actual spoken listening acceptance remains open. Typecheck, 176 tests, lint,
+  production build, dev launch, and diff checks passed; temporary app instances were closed.
