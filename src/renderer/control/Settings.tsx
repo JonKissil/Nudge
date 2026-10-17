@@ -1,5 +1,5 @@
 import type { ControlApi } from '../../shared/bridge'
-import type { SessionSnapshot } from '../../shared/types'
+import type { SessionSnapshot, Theme } from '../../shared/types'
 import { LANGUAGE_CODES, LANGUAGE_NATIVE_NAMES, type LanguageCode } from '../../shared/languages'
 import { DevHud } from './DevHud'
 import { Permissions } from './Permissions'
@@ -17,8 +17,31 @@ interface SettingsProps {
 }
 
 export function Settings({ api, snapshot, busy, active, language, setLanguage, command, setDemoMode }: SettingsProps) {
+  const themes: Array<{ id: Theme; name: string; detail: string }> = [
+    { id: 'pixelated', name: 'Pixelated', detail: 'Retro focus' },
+    { id: 'minimalist', name: 'Minimalist', detail: 'Calm and clear' },
+    { id: 'neo-brutalist', name: 'Neo-brutalist', detail: 'Bold contrast' },
+    { id: 'playful', name: 'Playful', detail: 'A little companion' },
+  ]
   return (
     <div className={styles.settingsPage}>
+      <section className={styles.themeSection} aria-labelledby="theme-heading">
+        <div className={styles.sectionHeading}>
+          <strong id="theme-heading">Appearance</strong>
+          <span>Choose your Nudge</span>
+        </div>
+        <div className={styles.themeGrid} role="group" aria-label="App theme">
+          {themes.map((theme) => <button key={theme.id} type="button"
+            className={styles.themeChoice} data-choice={theme.id}
+            aria-pressed={snapshot?.settings.theme === theme.id}
+            disabled={!snapshot || busy}
+            onClick={() => { void command(() => api.setSettings({ theme: theme.id }), 'Could not save the theme.') }}>
+            <span className={styles.themeSwatch} aria-hidden="true"><span /><span /><span /></span>
+            <span className={styles.themeChoiceText}><strong>{theme.name}</strong><small>{theme.detail}</small></span>
+            <span className={styles.themeCheck} aria-hidden="true">✓</span>
+          </button>)}
+        </div>
+      </section>
       <section className={styles.card} aria-label="Conversation language">
         <label htmlFor="language">Language</label>
         <select id="language" className={styles.language} value={language} lang={language}

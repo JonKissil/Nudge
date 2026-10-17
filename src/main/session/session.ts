@@ -12,7 +12,7 @@ import type {
 } from '../../shared/types'
 import type { MicTestResult } from '../../shared/types'
 import { GeminiLiveClient } from '../gemini/liveClient'
-import type { AppWindows } from '../windows'
+import { setControlTheme, type AppWindows } from '../windows'
 import { StudyEngine, createStudyToolHandlers } from './engine'
 import type { EffectPorts } from './effects'
 import { LiveSessionBridge } from './liveSession'
@@ -54,7 +54,7 @@ export function registerScaffoldIpc(
   let snapshot: SessionSnapshot = SessionSnapshotSchema.parse({
     state: 'IDLE', conn: 'disconnected', task: demoMode ? DEMO_TASK : '', minutes: 30, language: 'en',
     overlayPreview: 'hidden',
-    settings: { demoMode, showHud: demoMode },
+    settings: { demoMode, showHud: demoMode, theme: 'minimalist' },
     stats: { framesPerMinute: 0, resumptionHandleAgeMs: null, transitions: [], logs: [], capture: { state: 'off' } },
   })
   let previewOverlay: OverlayState = createOverlayPreview('hidden', Date.now())
@@ -95,7 +95,7 @@ export function registerScaffoldIpc(
       notes: sessionNotes, caption,
     })
     const isPreviewing = snapshot.state === 'IDLE' || snapshot.state === 'ENDED'
-    const overlay = isPreviewing ? previewOverlay : sessionOverlay
+    const overlay = { ...(isPreviewing ? previewOverlay : sessionOverlay), theme: snapshot.settings.theme }
     const interactiveKey = `${overlay.pill.state}|${Boolean(overlay.nudge)}|${Boolean(overlay.guidance)}|${overlay.notes.map((note) => note.id).join(',')}`
     if (interactiveKey !== lastInteractiveKey) {
       windows.overlay.setIgnoreMouseEvents(true, { forward: true })
@@ -259,6 +259,9 @@ export function registerScaffoldIpc(
     publish, log,
   })
   const store = new AppStore(join(app.getPath('userData'), 'state.json'), (message) => log(message))
+  snapshot = { ...snapshot, settings: { ...snapshot.settings, theme: store.theme } }
+  const initialControl = getWindows()?.control
+  if (initialControl) setControlTheme(initialControl, store.theme)
   const ocr = new OcrService(log)
   const returns = new ReturnActions({
     requestFullFrame: () => perception.requestFullFrame(),
@@ -380,7 +383,10 @@ export function registerScaffoldIpc(
   handle(IPC.settingsSet, IpcSchemas[IPC.settingsSet], async (settings) => {
     const next = { ...snapshot.settings, ...settings,
       ...(settings.demoMode === true ? { showHud: true } : {}) }
+    if (settings.theme !== undefined) await store.saveTheme(settings.theme)
     snapshot = { ...snapshot, settings: next }
+    const control = getWindows()?.control
+    if (control && settings.theme !== undefined) setControlTheme(control, next.theme)
     if (settings.demoMode !== undefined) {
       const config = next.demoMode ? DEMO : DEFAULTS
       tickMs = config.tickMs

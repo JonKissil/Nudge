@@ -1,9 +1,11 @@
 import type { NudgeView } from '../../shared/types'
 import { OverlayButton, type OverlayControls } from './OverlayButton'
 import styles from './Overlay.module.css'
+import mascot from '../assets/sprout-mascot.png'
 
 export function NudgeCard({ nudge, onAction, onInteractive }: OverlayControls & { nudge: NudgeView }) {
   return <section className={styles.nudge} aria-label="A gentle check-in">
+    <img src={mascot} alt="" className={styles.nudgeMascot} />
     <span className={styles.eyebrow}>A MOMENT TO CHECK IN</span>
     <p>{nudge.text}</p>
     <div className={styles.actions}>

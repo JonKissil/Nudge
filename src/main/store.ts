@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { mkdir, rename, unlink, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { AllowListEntry, WindowInfo } from '../shared/types'
+import type { AllowListEntry, Theme, WindowInfo } from '../shared/types'
 import { addAllowedWindow, StoredStateSchema, type StoredState } from './drift/allowList'
 import { SavedTaskTabSchema, type SavedTaskTab } from './session/taskUrl'
 
@@ -21,6 +21,12 @@ export class AppStore {
   }
 
   get allowList(): readonly AllowListEntry[] { return this.state.allowList }
+  get theme(): Theme { return this.state.theme ?? 'minimalist' }
+
+  saveTheme(theme: Theme): Promise<void> {
+    return this.update((state) => state.theme === theme ? state : { ...state, theme },
+      'The selected theme could not be saved. Please try again.')
+  }
 
   allow(window: WindowInfo): Promise<void> {
     return this.update((state) => addAllowedWindow(state, window), 'The allow-list could not be saved. Please try again.')

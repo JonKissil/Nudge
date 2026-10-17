@@ -2,6 +2,9 @@
 :global(html), :global(body), :global(#root) { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; pointer-events: none; }
 :global(body) { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; color: #283b35; }
 .surface { position: relative; width: 100%; height: 100%; pointer-events: none; user-select: none; }
+.surface[data-theme='pixelated'] { font-family: Monaco, Menlo, 'Courier New', monospace; color: #203c31; }
+.surface[data-theme='neo-brutalist'] { font-family: 'Arial Black', Arial, sans-serif; color: #171717; }
+.surface[data-theme='playful'] { color: #324b44; }
 .pill, .nudge, .note, .captions, .arrow span { box-shadow: 0 8px 32px #142d2420; }
 .pill { position: absolute; right: 24px; top: 40px; display: flex; align-items: center; gap: 12px; border-radius: 40px; padding: 10px 12px 10px 18px; background: #fcfcf6f5; border: 1px solid #d9dfd4; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: #648565; }
@@ -16,6 +19,7 @@
 .button:focus-visible, .secondaryButton:focus-visible { outline: 2px solid #467347; outline-offset: 3px; }
 .pill .secondaryButton { border-radius: 50%; width: 32px; height: 32px; padding: 0; font-size: 15px; }
 .nudge { position: absolute; top: 128px; right: 24px; width: min(340px, calc(100% - 48px)); padding: 22px; background: #fffefa; border: 1px solid #dce2d6; border-radius: 18px; }
+.nudgeMascot { display: none; position: absolute; top: -37px; right: 10px; width: 74px; height: 74px; object-fit: contain; pointer-events: none; }
 .eyebrow { color: #6c795f; font-size: 9px; font-weight: 650; letter-spacing: 1.4px; }
 .nudge p { font-size: 17px; line-height: 1.55; letter-spacing: -.2px; margin: 12px 0 18px; overflow-wrap: anywhere; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -31,6 +35,45 @@
 .note p { margin: 12px 0 15px; font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; color: #514b30; }
 .noteFooter { font-size: 10px; color: #8a7e4d; }
 .captions { position: absolute; left: 50%; transform: translateX(-50%); bottom: 40px; width: max-content; max-width: min(720px, calc(100% - 48px)); padding: 14px 22px; border-radius: 12px; background: #243c32f5; border: 1px solid #ffffff25; color: #fffefa; font-size: 18px; line-height: 1.5; text-align: center; overflow-wrap: anywhere; }
+.surface[data-theme='pixelated'] .pill, .surface[data-theme='pixelated'] .nudge,
+.surface[data-theme='pixelated'] .guidance, .surface[data-theme='pixelated'] .note,
+.surface[data-theme='pixelated'] .captions, .surface[data-theme='pixelated'] .arrow span {
+  border: 2px solid #245b47; border-radius: 2px; box-shadow: 5px 5px 0 #203c31;
+}
+.surface[data-theme='pixelated'] .pill, .surface[data-theme='pixelated'] .nudge,
+.surface[data-theme='pixelated'] .guidance, .surface[data-theme='pixelated'] .arrow span { background: #f7f9df; }
+.surface[data-theme='pixelated'] .button, .surface[data-theme='pixelated'] .secondaryButton { border-radius: 2px; border: 2px solid #245b47; }
+.surface[data-theme='pixelated'] .button { background: #245b47; }
+.surface[data-theme='pixelated'] .secondaryButton { background: #c4dfa8; color: #203c31; }
+.surface[data-theme='pixelated'] .pillCopy, .surface[data-theme='pixelated'] .pillCopy strong,
+.surface[data-theme='pixelated'] .note p, .surface[data-theme='pixelated'] .noteFooter { color: #203c31; }
+.surface[data-theme='pixelated'] .captions { background: #203c31; color: #fffdec; }
+.surface[data-theme='neo-brutalist'] .pill, .surface[data-theme='neo-brutalist'] .nudge,
+.surface[data-theme='neo-brutalist'] .guidance, .surface[data-theme='neo-brutalist'] .note,
+.surface[data-theme='neo-brutalist'] .captions, .surface[data-theme='neo-brutalist'] .arrow span {
+  border: 2px solid #171717; border-radius: 2px; box-shadow: 6px 6px 0 #171717;
+}
+.surface[data-theme='neo-brutalist'] .pill, .surface[data-theme='neo-brutalist'] .guidance { background: #ffe87a; }
+.surface[data-theme='neo-brutalist'] .nudge, .surface[data-theme='neo-brutalist'] .arrow span { background: #fffdf2; }
+.surface[data-theme='neo-brutalist'] .note { background: #ffb9cd; }
+.surface[data-theme='neo-brutalist'] .button, .surface[data-theme='neo-brutalist'] .secondaryButton { border: 2px solid #171717; border-radius: 2px; }
+.surface[data-theme='neo-brutalist'] .button { background: #2542e4; color: #fff; }
+.surface[data-theme='neo-brutalist'] .secondaryButton { background: #ffb9cd; color: #171717; }
+.surface[data-theme='neo-brutalist'] .pillCopy, .surface[data-theme='neo-brutalist'] .pillCopy strong,
+.surface[data-theme='neo-brutalist'] .note p, .surface[data-theme='neo-brutalist'] .noteFooter { color: #171717; }
+.surface[data-theme='neo-brutalist'] .captions { background: #2542e4; color: #fff; }
+.surface[data-theme='playful'] .pill, .surface[data-theme='playful'] .nudge,
+.surface[data-theme='playful'] .guidance, .surface[data-theme='playful'] .arrow span {
+  background: #fff8fd; border-color: #dacde6; border-radius: 22px; box-shadow: 0 8px 24px #7258a82d;
+}
+.surface[data-theme='playful'] .nudgeMascot { display: block; }
+.surface[data-theme='playful'] .nudge { padding-top: 28px; }
+.surface[data-theme='playful'] .note { background: #fff0ba; border-color: #eccd73; border-radius: 6px 22px 22px 22px; }
+.surface[data-theme='playful'] .button, .surface[data-theme='playful'] .secondaryButton { border-radius: 14px; }
+.surface[data-theme='playful'] .button { background: #7258a8; }
+.surface[data-theme='playful'] .secondaryButton { background: #e9ddf5; color: #443a67; }
+.surface[data-theme='playful'] .pillCopy, .surface[data-theme='playful'] .pillCopy strong { color: #324b44; }
+.surface[data-theme='playful'] .captions { background: #554376; border-radius: 20px; }
 @keyframes point { 50% { transform: translate(4px, 4px); } }
 @keyframes fade-note { to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {

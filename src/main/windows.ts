@@ -1,5 +1,14 @@
 import { BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
+import type { Theme } from '../shared/types'
+
+const controlBackground: Record<Theme, string> = {
+  pixelated: '#dcecc9', minimalist: '#f5f4ef', 'neo-brutalist': '#ffe87a', playful: '#f7f0fa',
+}
+
+export function setControlTheme(window: BrowserWindow, theme: Theme): void {
+  window.setBackgroundColor(controlBackground[theme])
+}
 
 export type WindowKind = 'control' | 'overlay' | 'media'
 export type AppWindows = Record<WindowKind, BrowserWindow>
@@ -19,7 +28,8 @@ export function createWindows(): AppWindows {
       show: false,
       ...(kind === 'control'
         ? { width: 440, height: 440, resizable: false, maximizable: false,
-            fullscreenable: false, backgroundColor: '#f5f4ef' }
+            fullscreenable: false, backgroundColor: controlBackground.minimalist,
+            titleBarStyle: 'hiddenInset' as const }
         : kind === 'overlay'
           ? { ...screen.getPrimaryDisplay().bounds, transparent: true, frame: false,
               focusable: false, hasShadow: false, skipTaskbar: true,

@@ -1,11 +1,12 @@
 import { z } from 'zod'
-import { AllowListEntrySchema, type AllowListEntry, type WindowInfo } from '../../shared/types'
+import { AllowListEntrySchema, ThemeSchema, type AllowListEntry, type WindowInfo } from '../../shared/types'
 import { isBrowser } from './matchWindow'
 import { SavedTaskTabSchema } from '../session/taskUrl'
 
 export const StoredStateSchema = z.strictObject({
   version: z.literal(1), allowList: z.array(AllowListEntrySchema).max(1000),
   lockedTask: SavedTaskTabSchema.optional(),
+  theme: ThemeSchema.optional(),
 })
 export type StoredState = z.infer<typeof StoredStateSchema>
 
