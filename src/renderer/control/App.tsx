@@ -16,6 +16,7 @@ export function App() {
   const [minutes, setMinutes] = useState(30)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+<<<<<<< HEAD
   const [now, setNow] = useState(Date.now())
   const active = snapshot?.state === 'FOCUSED' || snapshot?.state === 'PAUSED'
 
@@ -25,6 +26,9 @@ export function App() {
     const timer = setInterval(() => setNow(Date.now()), 100)
     return () => clearInterval(timer)
   }, [snapshot?.lockWindowAt])
+=======
+  const [previewBusy, setPreviewBusy] = useState(false)
+>>>>>>> origin/main
 
   useEffect(() => {
     let active = true
@@ -50,18 +54,33 @@ export function App() {
     finally { setBusy(false) }
   }
 
+<<<<<<< HEAD
   async function command(action: () => ReturnType<ControlApi['endSession']>): Promise<void> {
     setBusy(true); setError('')
     try { const result = await action(); if (!result.ok) setError(result.error) }
     catch { setError('The action could not be completed. Please try again.') }
     finally { setBusy(false) }
+=======
+  async function previewOverlay(action: 'next' | 'hide'): Promise<void> {
+    setPreviewBusy(true)
+    setError('')
+    try {
+      const result = await getApi().previewOverlay(action)
+      if (!result.ok) setError(result.error)
+    } catch { setError('Could not update the overlay preview. Please try again.') }
+    finally { setPreviewBusy(false) }
+>>>>>>> origin/main
   }
 
   return (
     <main className={styles.shell}>
       <header className={styles.header}>
         <span className={styles.brand}><span className={styles.mark} aria-hidden="true">↗</span> Nudge</span>
+<<<<<<< HEAD
         <span className={styles.badge}>Early build · M2</span>
+=======
+        <span className={styles.badge}>Early build · M1</span>
+>>>>>>> origin/main
       </header>
       <p className={styles.eyebrow}>A LITTLE COMPANY FOR YOUR FOCUS</p>
       <h1>One thing at a time.</h1>
@@ -96,6 +115,17 @@ export function App() {
         {snapshot?.stats.capture?.error && <p role="alert" className={styles.error}>{snapshot.stats.capture.error}</p>}
         {error && <p role="alert" className={styles.error}>{error}</p>}
       </form>
+      <section className={styles.preview} aria-label="Overlay preview">
+        <div className={styles.previewHeader}><strong>Overlay preview</strong><span>Development</span></div>
+        <p>Cycle through the pill, check-in, arrow, next step, captions, and session states. Buttons simulate their actions.</p>
+        <div className={styles.previewActions}>
+          <button type="button" disabled={!snapshot || previewBusy} onClick={() => { void previewOverlay('next') }}>Next overlay preview</button>
+          <button type="button" disabled={!snapshot || previewBusy || snapshot.overlayPreview === 'hidden'}
+            onClick={() => { void previewOverlay('hide') }}>Hide overlay</button>
+        </div>
+        <p role="status" className={styles.previewStatus}>Showing: {snapshot?.overlayPreview ?? 'hidden'}
+          {snapshot?.stats.logs.at(-1)?.startsWith('Overlay preview:') && ` · ${snapshot.stats.logs.at(-1)}`}</p>
+      </section>
       <aside className={styles.note}>
         <strong>Your space, your pace.</strong>
         <p>{active ? 'Screen perception is ready. Voice check-ins arrive in the next milestones.'

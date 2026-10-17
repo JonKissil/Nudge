@@ -75,6 +75,10 @@ export const OverlayActionSchema = z.strictObject({
   id: z.string().min(1).optional(),
 }).refine((value) => value.kind !== 'dismiss-note' || value.id !== undefined, 'A note id is required')
 export type OverlayAction = z.infer<typeof OverlayActionSchema>
+export const OverlayPreviewSchema = z.enum([
+  'hidden', 'focused', 'nudge', 'guide', 'note', 'captions', 'snoozed', 'paused', 'offline', 'all',
+])
+export type OverlayPreview = z.infer<typeof OverlayPreviewSchema>
 export const SessionStartSchema = z.strictObject({
   task: z.string().trim().min(1).max(1000), minutes: z.number().int().min(1).max(240),
 })
@@ -83,8 +87,12 @@ export const SessionSnapshotSchema = z.strictObject({
   state: SessionStateSchema, taskWindow: WindowInfoSchema.optional(), lastStatus: StatusSchema.optional(),
   conn: ConnStateSchema, stats: HudStatsSchema, settings: SettingsSchema,
   task: z.string(), minutes: z.number().int().min(1).max(240),
+<<<<<<< HEAD
   lockWindowAt: z.number().nonnegative().optional(),
   lockError: z.string().optional(),
+=======
+  overlayPreview: OverlayPreviewSchema.optional(),
+>>>>>>> origin/main
 })
 export type SessionSnapshot = z.infer<typeof SessionSnapshotSchema>
 export const ActionResultSchema = z.discriminatedUnion('ok', [

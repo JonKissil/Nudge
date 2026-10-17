@@ -13,7 +13,9 @@ export function createWindows(): AppWindows {
         ? { width: 640, height: 760, minWidth: 480, minHeight: 600, backgroundColor: '#f5f4ef' }
         : kind === 'overlay'
           ? { ...screen.getPrimaryDisplay().bounds, transparent: true, frame: false,
-              focusable: false, hasShadow: false, skipTaskbar: true }
+              focusable: false, hasShadow: false, skipTaskbar: true,
+              // Prevent macOS from clamping the overlay to the menu bar / Dock work area.
+              type: 'panel', enableLargerThanScreen: true, resizable: false, fullscreenable: false }
           : { width: 320, height: 240, skipTaskbar: true }),
       webPreferences: {
         preload: join(__dirname, `../preload/${kind}.js`),
@@ -30,6 +32,10 @@ export function createWindows(): AppWindows {
     })
     window.webContents.on('render-process-gone', (_event, details) => {
       console.error(`${kind} renderer exited: ${details.reason}`)
+      if (kind === 'overlay') window.setIgnoreMouseEvents(true, { forward: true })
+    })
+    if (kind === 'overlay') window.webContents.on('did-start-loading', () => {
+      window.setIgnoreMouseEvents(true, { forward: true })
     })
     return window
   }
@@ -39,6 +45,18 @@ export function createWindows(): AppWindows {
   windows.overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   windows.overlay.setIgnoreMouseEvents(true, { forward: true })
   windows.overlay.setContentProtection(true)
+
+  const updateBounds = (): void => {
+    if (!windows.overlay.isDestroyed()) windows.overlay.setBounds(screen.getPrimaryDisplay().bounds)
+  }
+  screen.on('display-metrics-changed', updateBounds)
+  screen.on('display-added', updateBounds)
+  screen.on('display-removed', updateBounds)
+  windows.overlay.once('closed', () => {
+    screen.removeListener('display-metrics-changed', updateBounds)
+    screen.removeListener('display-added', updateBounds)
+    screen.removeListener('display-removed', updateBounds)
+  })
 
   return windows
 }

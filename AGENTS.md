@@ -387,11 +387,15 @@ export const DEMO = { ...DEFAULTS, tickMs: 4_000, graceMs: 15_000, checkinSilenc
 - `BrowserWindow` covering the primary display's bounds: `transparent: true, frame: false, focusable: false,
   hasShadow: false, skipTaskbar: true`; `setAlwaysOnTop(true, 'screen-saver')`;
   `setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })`; `setIgnoreMouseEvents(true, { forward: true })`.
+  On macOS, use `type: 'panel'` and `enableLargerThanScreen: true` so the window covers the full display,
+  including the menu bar / Dock areas, rather than being clamped to the work area.
 - **Interactive elements** (the nudge card's buttons, the note's dismiss ✕): on `mouseenter`, ask main to call
   `setIgnoreMouseEvents(false)`; on `mouseleave`, set it back to `(true, { forward: true })`.
-- **Hide the overlay from the model:** `overlay.setContentProtection(true)` should exclude it from screen capture.
-  **Verify this on the demo Mac in the first hours.** If the overlay still shows up in frames, note it in `TASKS.md`
-  and tell the model in the system instruction that the small "Nudge" UI is its own.
+- **Hide the overlay from the model:** enable `overlay.setContentProtection(true)`, but do not assume exclusion.
+  [Electron documents](https://www.electronjs.org/docs/latest/api/browser-window#winsetcontentprotectionenable-macos-windows)
+  that newer macOS capture apps using ScreenCaptureKit can still capture protected windows.
+  **Verify this on the demo Mac in the first hours.** Record the result in `TASKS.md`; until exclusion is verified,
+  tell the model in the system instruction that the small "Nudge" UI is its own and should be ignored for task judgment.
 - **Components:**
   - `Pill`: small, top-right. Shows state (focused / snoozed 4:12 / paused) and has a pause button.
   - `NudgeCard`: the nudge text plus three buttons that mirror voice: *Take me back*, *5 more min*, *This is for my task*.

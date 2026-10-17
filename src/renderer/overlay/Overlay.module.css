@@ -1,2 +1,37 @@
-:global(html), :global(body), :global(#root) { margin: 0; width: 100%; height: 100%; background: transparent; }
-.surface { width: 100%; height: 100%; pointer-events: none; }
+:global(*) { box-sizing: border-box; }
+:global(html), :global(body), :global(#root) { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; pointer-events: none; }
+:global(body) { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; color: #283b35; }
+.surface { position: relative; width: 100%; height: 100%; pointer-events: none; user-select: none; }
+.pill, .nudge, .note, .captions, .arrow span { box-shadow: 0 8px 32px #142d2420; }
+.pill { position: absolute; right: 24px; top: 40px; display: flex; align-items: center; gap: 12px; border-radius: 40px; padding: 10px 12px 10px 18px; background: #fcfcf6f5; border: 1px solid #d9dfd4; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #648565; }
+.dot[data-paused='true'] { background: #a79063; }
+.pillCopy { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #687565; }
+.pillCopy strong { font-size: 13px; color: #304b3b; font-weight: 600; }
+.button, .secondaryButton { pointer-events: auto; cursor: pointer; font: inherit; font-size: 12px; line-height: 1.4; border-radius: 8px; padding: 9px 12px; border: 1px solid transparent; }
+.button { background: #344e40; color: #fffefa; }
+.button:hover { background: #253e31; }
+.secondaryButton { background: #eef1e8; color: #465b44; border-color: #dce2d5; }
+.secondaryButton:hover { background: #e0e7d8; }
+.button:focus-visible, .secondaryButton:focus-visible { outline: 2px solid #467347; outline-offset: 3px; }
+.pill .secondaryButton { border-radius: 50%; width: 32px; height: 32px; padding: 0; font-size: 15px; }
+.nudge { position: absolute; top: 128px; right: 24px; width: min(340px, calc(100% - 48px)); padding: 22px; background: #fffefa; border: 1px solid #dce2d6; border-radius: 18px; }
+.eyebrow { color: #6c795f; font-size: 9px; font-weight: 650; letter-spacing: 1.4px; }
+.nudge p { font-size: 17px; line-height: 1.55; letter-spacing: -.2px; margin: 12px 0 18px; overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions .button { display: flex; align-items: center; justify-content: space-between; flex-basis: 100%; }
+.arrow { position: absolute; width: 44px; height: 44px; color: #456b43; animation: point 1.8s ease-in-out infinite; }
+.arrow svg { display: block; filter: drop-shadow(0 1px 2px #fff); }
+.arrow span { position: absolute; display: block; background: #edf3e4; border: 1px solid #bccfae; border-radius: 9px; padding: 10px 14px; width: max-content; max-width: min(240px, calc(100vw - 32px)); overflow-wrap: anywhere; font-size: 13px; }
+.note { position: absolute; width: min(272px, calc(100% - 32px)); padding: 14px 18px 18px; border: 1px solid #e5d99c; background: #fff6ce; border-radius: 4px 14px 14px 14px; animation: fade-note .3s ease-out forwards; }
+.noteHeader { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.note .secondaryButton { padding: 1px 5px; background: transparent; border: 0; font-size: 21px; color: #86794c; }
+.note p { margin: 12px 0 15px; font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; color: #514b30; }
+.noteFooter { font-size: 10px; color: #8a7e4d; }
+.captions { position: absolute; left: 50%; transform: translateX(-50%); bottom: 40px; width: max-content; max-width: min(720px, calc(100% - 48px)); padding: 14px 22px; border-radius: 12px; background: #243c32f5; border: 1px solid #ffffff25; color: #fffefa; font-size: 18px; line-height: 1.5; text-align: center; overflow-wrap: anywhere; }
+@keyframes point { 50% { transform: translate(4px, 4px); } }
+@keyframes fade-note { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .arrow, .note { animation: none; }
+  .arrow svg { outline: 2px solid #6e925f; outline-offset: 4px; border-radius: 4px; }
+}
