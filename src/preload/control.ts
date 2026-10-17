@@ -15,5 +15,6 @@ const api: ControlApi = {
   lockTaskWindow: () => invokeAction(IPC.sessionLockWindow, {}),
   endSession: () => invokeAction(IPC.sessionEnd, {}),
   setSettings: (settings) => invokeAction(IPC.settingsSet, settings),
+  setCaptureRunning: (running) => invokeAction(IPC.captureSet, { running }),
 }
 contextBridge.exposeInMainWorld('nudge', api)

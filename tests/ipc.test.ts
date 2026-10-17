@@ -31,6 +31,14 @@ describe('IPC boundaries', () => {
     expect(schema.safeParse({ kind: 'execute-code' }).success).toBe(false)
   })
 
+  it('validates large full-resolution payloads without overflowing the regex stack', () => {
+    const schema = IpcSchemas[IPC.frameFull]
+    expect(schema.safeParse({ pngBase64: 'AAAA'.repeat(500_000), width: 2816, height: 1762 }).success).toBe(true)
+    for (const pngBase64 of ['A', 'A===', '=AAA', 'AAAA\n']) {
+      expect(schema.safeParse({ pngBase64, width: 2816, height: 1762 }).success).toBe(false)
+    }
+  })
+
   it('rejects overlay coordinates outside the display', () => {
     const schema = IpcSchemas[IPC.overlayState]
     const state = { pill: { state: 'FOCUSED', offline: false }, notes: [] }

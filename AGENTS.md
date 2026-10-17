@@ -497,8 +497,10 @@ Define a zod schema for every payload. Channel names live in `src/shared/ipc.ts`
 
 ## 15. macOS permissions
 
-The app needs **Screen Recording** (capture, plus `get-windows` titles and URLs), **Microphone**, and **Automation →
-Google Chrome** (osascript). It may also need **Accessibility**, depending on `get-windows`.
+The app needs **Screen Recording** (capture and window titles), **Accessibility** (`get-windows`
+browser URLs), **Automation → Safari / Google Chrome** (browser URL reads and later focus actions),
+and **Microphone** (voice). The native `get-windows` helper reads browser URLs through Apple Events;
+enabling Accessibility alone may not be enough. Grant access for the browser used in the demo.
 
 - In dev, macOS attributes permissions to the launching app (Terminal, iTerm, VS Code, or Xcode) *and* Electron. Grant them, then **fully restart**.
 - On start, the control window shows a permission checklist (`systemPreferences.getMediaAccessStatus('screen'|'microphone')`)

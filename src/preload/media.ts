@@ -13,5 +13,7 @@ const api: MediaApi = {
   onAudioFlush: (listener) => subscribe(IPC.audioFlush, IpcSchemas[IPC.audioFlush], listener),
   onFullFrameRequest: (listener) => subscribe(IPC.frameRequestFull, IpcSchemas[IPC.frameRequestFull], listener),
   onCaptureSet: (listener) => subscribe(IPC.captureSet, IpcSchemas[IPC.captureSet], listener),
+  sendCaptureStatus: (status) => send(IPC.captureStatus, status),
+  ready: () => send(IPC.mediaReady, {}),
 }
 contextBridge.exposeInMainWorld('nudge', api)

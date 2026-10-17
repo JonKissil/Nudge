@@ -13,6 +13,7 @@ export interface ControlApi {
   lockTaskWindow: () => Promise<ActionResult>
   endSession: () => Promise<ActionResult>
   setSettings: (settings: Partial<Settings>) => Promise<ActionResult>
+  setCaptureRunning: (running: boolean) => Promise<ActionResult>
 }
 export interface OverlayApi {
   kind: 'overlay'
@@ -30,5 +31,7 @@ export interface MediaApi {
   onAudioFlush: Listen<typeof IPC.audioFlush>
   onFullFrameRequest: Listen<typeof IPC.frameRequestFull>
   onCaptureSet: Listen<typeof IPC.captureSet>
+  sendCaptureStatus: (status: IpcPayload<typeof IPC.captureStatus>) => void
+  ready: () => void
 }
 export type NudgeApi = ControlApi | OverlayApi | MediaApi

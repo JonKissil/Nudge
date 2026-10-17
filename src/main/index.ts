@@ -12,7 +12,8 @@ async function bootstrap(): Promise<void> {
   if (existsSync(envPath)) process.loadEnvFile(envPath)
 
   const windows = createWindows()
-  registerScaffoldIpc(() => windows)
+  const controller = registerScaffoldIpc(() => windows)
+  app.once('before-quit', controller.dispose)
   windows.control.on('closed', () => { app.quit() })
   await loadWindows(windows)
 }

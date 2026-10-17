@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import {
-  OverlayActionSchema, OverlayStateSchema, SessionSnapshotSchema, SessionStartSchema, SettingsSchema,
+  CaptureStatusSchema, OverlayActionSchema, OverlayStateSchema, SessionSnapshotSchema, SessionStartSchema, SettingsSchema,
 } from './types'
 
 export const IPC = {
@@ -9,11 +9,12 @@ export const IPC = {
   captureSet: 'capture:set', overlayState: 'overlay:state', overlayAction: 'overlay:action',
   overlayHover: 'overlay:hover', sessionStart: 'session:start', sessionLockWindow: 'session:lock-window',
   sessionEnd: 'session:end', sessionSnapshot: 'session:snapshot', settingsSet: 'settings:set',
+  mediaReady: 'media:ready', captureStatus: 'capture:status',
 } as const
 
 export const EmptySchema = z.strictObject({})
 const dimensions = { width: z.number().int().positive(), height: z.number().int().positive() }
-const base64 = z.string().min(1).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u)
+const base64 = z.string().min(1).refine((value) => value.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/u.test(value), 'Invalid base64')
 
 export const IpcSchemas = {
   [IPC.frame]: z.strictObject({ jpegBase64: base64, ...dimensions, ts: z.number().nonnegative() }),
@@ -24,6 +25,8 @@ export const IpcSchemas = {
   [IPC.audioFlush]: EmptySchema,
   [IPC.frameRequestFull]: EmptySchema,
   [IPC.captureSet]: z.strictObject({ running: z.boolean() }),
+  [IPC.captureStatus]: CaptureStatusSchema,
+  [IPC.mediaReady]: EmptySchema,
   [IPC.overlayState]: OverlayStateSchema,
   [IPC.overlayAction]: OverlayActionSchema,
   [IPC.overlayHover]: z.strictObject({ interactive: z.boolean() }),
