@@ -37,7 +37,8 @@ function fixture(focusSucceeds = true, guideSucceeds = true) {
   }
   const engine = new StudyEngine(config, ports, undefined, () => now)
   const bridge = new LiveSessionBridge(client, createStudyToolHandlers(engine), {
-    playAudio: () => {}, flushAudio: () => {}, caption: () => {}, userSpeech: () => {}, micSet: () => {},
+    playAudio: () => {}, flushAudio: () => {}, resetAudio: () => {},
+    caption: () => {}, userSpeech: () => {}, micSet: () => {},
     connection: () => {}, resumptionHandle: () => {}, error: () => {},
   })
   return { client, engine, bridge, capture, nudge, focus, guide, note, allow, setNow: (value: number) => { now = value } }

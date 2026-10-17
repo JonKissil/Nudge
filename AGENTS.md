@@ -202,7 +202,7 @@ const config = {
   // No proactivity field: gemini-3.8-live enables proactive audio by default.
   inputAudioTranscription: {},
   outputAudioTranscription: {},
-  speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+  speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } } },
 };
 
 session = await ai.live.connect({ model: 'gemini-3.8-live', config, callbacks });
@@ -467,8 +467,10 @@ export const DEMO = { ...DEFAULTS, tickMs: 4_000, graceMs: 15_000, checkinSilenc
 - **The mic is gated, not always on.** It opens in `CHECKIN` and while the push-to-talk hotkey is toggled on.
   Hackathon rooms are loud, and an always-hot mic makes the model answer strangers.
   When the mic closes, send `sendRealtimeInput({ audioStreamEnd: true })`.
-- **Playback:** model audio is 24 kHz Int16 PCM. Convert to Float32, schedule `AudioBufferSourceNode`s back-to-back on one
-  `AudioContext`. On `interrupted`, stop and clear everything queued.
+- **Playback:** model audio is 24 kHz Int16 PCM. Feed its chunks to one 24 kHz `AudioWorklet` stream with a short
+  jitter cushion. Preserve sample continuity across chunk boundaries, fade only when the stream runs dry,
+  and clear the worklet queue on `interrupted`. On study-session end, close the audio context and create
+  a fresh one for the next session.
 - **Recommend headphones for the demo** to prevent echo; barge-in still works.
 
 ## 13. IPC contract (`src/shared/types.ts`)
@@ -484,6 +486,7 @@ Define a zod schema for every payload. Channel names live in `src/shared/ipc.ts`
 'mic:set'        { open: boolean }
 'audio:play'     { pcm24Base64: string }
 'audio:flush'    {}
+'audio:reset'    {}                                                // close playback on session end
 'frame:request-full' {}
 'capture:set'    { running: boolean }
 'mic:test-start' { id: string }                                      // local probe, no Gemini forwarding

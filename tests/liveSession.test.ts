@@ -28,7 +28,8 @@ describe('LiveSessionBridge', () => {
   it('routes turns, media and captions, and closes audio on stop', async () => {
     const client = new FakeLiveClient()
     const sinks = {
-      playAudio: vi.fn(), flushAudio: vi.fn(), caption: vi.fn(), userSpeech: vi.fn(), micSet: vi.fn(),
+      playAudio: vi.fn(), flushAudio: vi.fn(), resetAudio: vi.fn(),
+      caption: vi.fn(), userSpeech: vi.fn(), micSet: vi.fn(),
       connection: vi.fn(), resumptionHandle: vi.fn(), error: vi.fn(),
     }
     const bridge = new LiveSessionBridge(client, handlers, sinks)
@@ -57,7 +58,12 @@ describe('LiveSessionBridge', () => {
     expect(sinks.resumptionHandle).toHaveBeenCalledWith(123)
     expect(sinks.flushAudio).toHaveBeenCalledTimes(1)
 
+    client.emit({ type: 'connection', state: 'reconnecting' })
+    expect(sinks.flushAudio).toHaveBeenCalledTimes(2)
+    expect(sinks.caption).toHaveBeenLastCalledWith('')
+
     await bridge.stop()
+    expect(sinks.resetAudio).toHaveBeenCalledOnce()
     expect(client.audioStreamEnds).toBe(1)
     expect(sinks.micSet).toHaveBeenLastCalledWith(false)
     expect(client.disconnects).toBe(1)
@@ -68,7 +74,8 @@ describe('LiveSessionBridge', () => {
   it('responds to each tool call with its id and silent scheduling', async () => {
     const client = new FakeLiveClient()
     const bridge = new LiveSessionBridge(client, handlers, {
-      playAudio: () => {}, flushAudio: () => {}, caption: () => {}, userSpeech: () => {}, micSet: () => {},
+      playAudio: () => {}, flushAudio: () => {}, resetAudio: () => {},
+      caption: () => {}, userSpeech: () => {}, micSet: () => {},
       connection: () => {}, resumptionHandle: () => {}, error: () => {},
     })
     await bridge.start(context)
@@ -78,6 +85,60 @@ describe('LiveSessionBridge', () => {
     await vi.waitFor(() => expect(client.toolResponses).toHaveLength(1))
     expect(client.toolResponses[0]).toMatchObject({ id: 'status-1', scheduling: 'silent', response: { ok: true } })
     await bridge.stop()
+    bridge.dispose()
+  })
+
+  it('waits for the old Live session to close before starting another', async () => {
+    const client = new FakeLiveClient()
+    let releaseDisconnect: (() => void) | undefined
+    const disconnectWait = new Promise<void>((resolve) => { releaseDisconnect = resolve })
+    const disconnect = client.disconnect.bind(client)
+    vi.spyOn(client, 'disconnect').mockImplementation(async () => {
+      await disconnectWait
+      await disconnect()
+    })
+    const sinks = {
+      playAudio: vi.fn(), flushAudio: vi.fn(), resetAudio: vi.fn(),
+      caption: vi.fn(), userSpeech: vi.fn(), micSet: vi.fn(),
+      connection: vi.fn(), resumptionHandle: vi.fn(), error: vi.fn(),
+    }
+    const bridge = new LiveSessionBridge(client, handlers, sinks)
+    await bridge.start(context)
+    const stopping = bridge.stop()
+    const starting = bridge.start({ ...context, task: 'New session' })
+    await Promise.resolve()
+    expect(client.connections).toHaveLength(1)
+    expect(sinks.resetAudio).toHaveBeenCalledOnce()
+    releaseDisconnect!()
+    await Promise.all([stopping, starting])
+    expect(client.connections).toHaveLength(2)
+    expect(client.connections[1]!.task).toBe('New session')
+    await bridge.stop()
+    bridge.dispose()
+  })
+
+  it('cancels a pending start if the study session ends again', async () => {
+    const client = new FakeLiveClient()
+    let releaseDisconnect: (() => void) | undefined
+    const disconnectWait = new Promise<void>((resolve) => { releaseDisconnect = resolve })
+    const disconnect = client.disconnect.bind(client)
+    vi.spyOn(client, 'disconnect').mockImplementation(async () => {
+      await disconnectWait
+      await disconnect()
+    })
+    const bridge = new LiveSessionBridge(client, handlers, {
+      playAudio: () => {}, flushAudio: () => {}, resetAudio: () => {},
+      caption: () => {}, userSpeech: () => {}, micSet: () => {},
+      connection: () => {}, resumptionHandle: () => {}, error: () => {},
+    })
+    await bridge.start(context)
+    const stopping = bridge.stop()
+    const starting = bridge.start({ ...context, task: 'Cancelled session' })
+    const secondStop = bridge.stop()
+    releaseDisconnect!()
+    await Promise.all([stopping, secondStop])
+    await expect(starting).rejects.toThrow('cancelled')
+    expect(client.connections).toHaveLength(1)
     bridge.dispose()
   })
 })

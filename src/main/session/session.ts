@@ -66,6 +66,7 @@ export function registerScaffoldIpc(
   let pendingMicTest: { id: string; resolve: (result: MicTestResult) => void; timer: ReturnType<typeof setTimeout> } | undefined
   let checkinMicOpen = false
   let pushToTalkOpen = false
+  let endingSession: Promise<ActionResult> | undefined
 
   const isSender = (sender: Electron.WebContents, kind: keyof AppWindows): boolean =>
     getWindows()?.[kind].webContents === sender
@@ -190,6 +191,7 @@ export function registerScaffoldIpc(
   const live = new LiveSessionBridge(new GeminiLiveClient(), createStudyToolHandlers(study), {
     playAudio: (pcm24Base64) => getWindows()?.media.webContents.send(IPC.audioPlay, { pcm24Base64 }),
     flushAudio: () => getWindows()?.media.webContents.send(IPC.audioFlush, {}),
+    resetAudio: () => getWindows()?.media.webContents.send(IPC.audioReset, {}),
     caption: (text) => { caption = text; publish() },
     userSpeech: () => { void study.dispatch({ type: 'USER_SPEECH' }) },
     micSet: (open) => getWindows()?.media.webContents.send(IPC.micSet, { open }),
@@ -305,7 +307,8 @@ export function registerScaffoldIpc(
       media.webContents.send(IPC.micTestStart, { id })
     })
   })
-  handle(IPC.sessionStart, IpcSchemas[IPC.sessionStart], (input) => {
+  handle(IPC.sessionStart, IpcSchemas[IPC.sessionStart], async (input) => {
+    await endingSession
     if (snapshot.state !== 'IDLE' && snapshot.state !== 'ENDED' && snapshot.state !== 'SETUP') {
       return { ok: false, error: 'End the current session before starting another.' }
     }
@@ -315,11 +318,17 @@ export function registerScaffoldIpc(
     return study.dispatch({ type: 'START_SETUP', ...input })
   })
   handle(IPC.sessionEnd, EmptySchema, async () => {
-    perception.cancelLock()
-    const result = await study.dispatch({ type: 'END' })
-    sessionNotes = []
-    publish()
-    return result
+    if (endingSession) return endingSession
+    const ending = (async () => {
+      perception.cancelLock()
+      const result = await study.dispatch({ type: 'END' })
+      sessionNotes = []
+      publish()
+      return result
+    })()
+    endingSession = ending
+    try { return await ending }
+    finally { if (endingSession === ending) endingSession = undefined }
   })
   handle(IPC.sessionPauseToggle, EmptySchema, () => {
     if (['IDLE', 'SETUP', 'ENDED'].includes(study.state.phase)) {

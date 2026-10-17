@@ -349,46 +349,37 @@ completed components; M8 has a draft deck and script.
   instructions and browser-neutral Automation copy. The original running instance was left open.
   Added four permission-presentation tests; all 69 tests, typecheck/build, lint, and diff checks passed.
   The separate `npm run dev` instance also passed the three-window/HUD launch smoke check and was closed.
-- 2026-10-17 — M5 implemented: main now executes escaped, case-sensitive Safari/Chrome tab selection,
-  activates document apps, and confirms arrival through the native poller (500ms while returning).
-  Focus failure returns an honest failure and offers guidance without automatically repeating focus.
-  Added the planned Swift/Vision helper early for tab-strip guidance, with in-memory PNG input and
-  normalized top-left output. OCR matches the first 20 title characters conservatively; missing or
-  ambiguous titles show a centered title card with a working Take me there button. Guidance clears
-  on arrival, timeout, pause, or end, and cancelled OCR cannot restore stale UI. Full-frame requests
-  now wait briefly for a fresh captured frame so guidance does not use the previous tab's pixels.
-- 2026-10-17 — M5 allow-list: current browser pages retain their query parameters, so allowing one video
-  does not allow another video or a lookalike URL. Other apps are stored by bundle ID. Validated JSON
-  writes are serialized and atomic in Nudge's user-data `state.json`; failures leave the check-in open.
-  Check-in observations now keep the useful current window fresh, and the real allow action reads it
-  again before saving and immediately recomputes its rule verdict. A save completing after End cannot
-  resume the session. No new dependencies were added.
-- 2026-10-17 — M5 acceptance used Safari with local test pages and scripted model replies, exercising
-  real AppleScript, screen capture, OCR, IPC, overlay buttons, and native arrival detection. Returns from
-  three distracting tabs took 373ms, 356ms, and 449ms including verification (two model tool calls and
-  one overlay button). The OCR arrow pointed inside the first tab at approximately (13.5%, 11.1%);
-  selecting the tab outside Nudge triggered re-entry and removed it. An absent task URL produced a failed focus
-  response and the fallback card; restoring the tab and clicking Take me there returned successfully.
-  This is for my task saved the active page, immediately classified it on-task, and a new Electron
-  process loaded that allowance and kept it on-task. Temporary Safari windows and the test allowance
-  were cleaned up. No captured frame/audio payloads were logged or persisted. Real spoken Live
-  return/guide/allow acceptance and native Chrome acceptance remain unverified; document OCR and
-  anchored notes remain M6.
-- 2026-10-17 — M5 checks passed: Swift helper build, typecheck, all 81 tests, lint, production build,
-  and diff checks. The final `npm run dev` smoke check verified three renderers, the control form/HUD,
-  isolated APIs, native polling, and capture off before locking; its test instance was closed.
-- 2026-10-17 — Requested M5 follow-up: save the full locked browser URL immediately, then read matching
-  tabs every 10 seconds during monitoring, including background tabs. Query/fragment changes and Docs
-  view changes update the in-memory target and one validated local JSON checkpoint; unchanged URLs
-  avoid repeat disk writes. Unrelated pages cannot overwrite the task. Window and task-URL reads share
-  the serial native-read queue; Pause suspends URL reads, End clears the checkpoint, and stale reads
-  from an ended/replaced task cannot restore it. Explicit returns search existing tabs first and reopen
-  the saved HTTP(S) URL only when no match exists, within one AppleScript action without automatic retries.
-- 2026-10-17 — Closed-tab recovery verified in Safari with local pages and scripted model replies:
-  the initial URL was saved at lock, a background tab's changed query/fragment was checkpointed without
-  stealing focus, and Take me back reopened exactly one tab at that updated URL. A subsequent return
-  reused the existing tab without duplication. The title-card Take me there button also reopened a
-  closed task tab, native polling confirmed re-entry, and End removed the checkpoint. Temporary test
-  windows were closed and the original saved state restored. Added URL validation/compatibility,
-  refresh timing, failure recovery, stale-read cancellation, and reducer tests. Typecheck, all 90 tests,
-  lint, production build, diff checks, and the final three-window dev-launch smoke check passed.
+- 2026-10-17 — Live voice playback fix: the student reported intermittent beeps during speech. The media
+  player could hit a WebSocket/IPC gap and restart raw PCM at a nonzero sample; interruptions also stopped
+  audio abruptly. Added an 80 ms start cushion, short fades only at stream edges or gaps, and a smooth
+  interruption fade while preserving continuous chunk boundaries. Reconnection now clears stale audio.
+  Tests cover adjacent/delayed chunks, interruption, malformed PCM, and reconnection cleanup. Typecheck,
+  72 tests, lint, production build, and diff checks passed. `npm run dev` built and started its renderer
+  server, but the tool launch could not open Electron in this sandbox; `npm run start:mac` launched the
+  built app through Launch Services for the desktop smoke check. A real listening check is still needed
+  to confirm the reported beep is gone.
+- 2026-10-17 — Voice follow-up: the student confirmed the electronic squeak still occurred inside speech
+  after the buffer scheduling fix. Two isolated Gemini Live comparisons, with no microphone or screen
+  input, showed large sample-to-sample jumps in Kore's raw PCM (307 and 44 jumps above 0.5 full scale),
+  versus zero in both Aoede responses to the same prompt. No audio was saved or printed; only numeric
+  continuity counts were used. Switched the configured voice to Aoede and retained the existing tested
+  playback path; the exploratory AudioWorklet rewrite was removed. The student has not yet listened to
+  the updated in-app voice, so audible acceptance remains open. Typecheck, 72 tests, lint, production
+  build, and diff checks passed; a temporary dev instance launched and was closed without stopping the
+  student's existing app.
+- 2026-10-17 — Voice playback follow-up: the student still heard an electronic squeak inside speech after
+  restarting with Aoede. The prior player faded while waiting for each next chunk and inserted another
+  80 ms pause when that chunk arrived after playback ran dry. Replaced the per-chunk buffer sources with
+  a continuous 24 kHz speaker worklet. It buffers 180 ms of delivery jitter, preserves adjacent PCM samples,
+  and fades only on underrun or interruption. Added tests for byte order, stream continuity, underrun,
+  and queue clearing. Typecheck, 74 tests, lint, production build, and a separate `npm run dev` launch
+  passed; the built speaker worklet asset is present. The separate app was closed after the launch check.
+  An in-app listening check is still needed for audible acceptance.
+- 2026-10-17 — Session audio cleanup: the student observed speech persisting across end/start cycles. Only
+  one Nudge Electron app was running. The Live reconnect loop previously checked a shared `active` flag,
+  so a reconnect from an ended session could wake after a new session set that flag again. Reconnects
+  now carry a lifecycle ID, stale connects close, and the Live bridge waits for old disconnects before
+  starting anew. Session end sends `audio:reset` to close the speaker worklet and audio context; start
+  waits for end cleanup. Added restart/reconnect, cancelled-start, and fresh-player tests. Typecheck,
+  77 tests, lint, production build, diff checks, and a separate `npm run dev` launch passed. The separate
+  app was closed after the launch check. Audible acceptance remains open.

@@ -34,6 +34,7 @@ export interface MediaApi {
   onMicSet: Listen<typeof IPC.micSet>
   onAudioPlay: Listen<typeof IPC.audioPlay>
   onAudioFlush: Listen<typeof IPC.audioFlush>
+  onAudioReset: Listen<typeof IPC.audioReset>
   onAudioChime: Listen<typeof IPC.audioChime>
   onFullFrameRequest: Listen<typeof IPC.frameRequestFull>
   onCaptureSet: Listen<typeof IPC.captureSet>

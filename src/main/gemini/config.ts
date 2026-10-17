@@ -10,6 +10,6 @@ export function buildLiveConfig(context: LiveSessionContext, handle?: string) {
     sessionResumption: { handle },
     inputAudioTranscription: {},
     outputAudioTranscription: {},
-    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } } },
   }
 }
