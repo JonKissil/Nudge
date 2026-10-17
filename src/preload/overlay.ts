@@ -5,7 +5,11 @@ import { send, subscribe } from './index'
 
 const api: OverlayApi = {
   kind: 'overlay',
-  onState: (listener) => subscribe(IPC.overlayState, IpcSchemas[IPC.overlayState], listener),
+  onState: (listener) => {
+    const unsubscribe = subscribe(IPC.overlayState, IpcSchemas[IPC.overlayState], listener)
+    send(IPC.overlayReady, {})
+    return unsubscribe
+  },
   action: (action) => send(IPC.overlayAction, action),
   setInteractive: (interactive) => send(IPC.overlayHover, { interactive }),
 }

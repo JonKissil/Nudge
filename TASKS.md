@@ -25,11 +25,13 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 
 ## M1 — Overlay (A, H2–H5)
 
-- [ ] Transparent, click-through, always-on-top overlay over the primary display, visible over full-screen Chrome
-- [ ] Hover-to-interact toggling for buttons
-- [ ] `setContentProtection(true)`; **verify the overlay is absent from captured frames** (record the result in the log)
-- [ ] Components: `Pill`, `NudgeCard`, `Arrow`, `StickyNote`, `Captions`, driven only by `overlay:state`
-- [ ] Normalized (0–1) coordinates; reduced-motion support
+- [x] Transparent, click-through, always-on-top overlay over the full primary display; full-screen visibility configured
+- [x] Hover-to-interact toggling for buttons
+- [x] `setContentProtection(true)` enabled
+- [ ] **Verify the overlay is absent from captured frames** on the demo Mac (Screen Recording currently denied; see log)
+- [x] Components: `Pill`, `NudgeCard`, `Arrow`, `StickyNote`, `Captions`, driven only by `overlay:state`
+- [x] Normalized (0–1) coordinates; reduced-motion support
+- [ ] Manual demo-Mac check: overlay visible over full-screen Chrome; physical clicks pass through outside buttons
 - **Accept:** a dev button in the control window cycles through every overlay component; clicks pass through
   everywhere except on buttons.
 
@@ -161,3 +163,22 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 - 2026-10-16 — M0 naming: Renamed the app to Nudge in UI copy, Electron/window titles, package metadata,
   preload APIs (`window.nudge` / `NudgeApi`), and project instructions. Typecheck, all 7 tests, lint,
   production build, and desktop launch passed; no old-name references remain in project sources or docs.
+- 2026-10-16 — M1 implementation: Added all five overlay components, button-only hover interaction, normalized
+  anchoring, live snooze countdown, three-minute note fade/removal, reduced-motion styling, and a control-window
+  preview cycle with hide/reset. Preview actions stay in main and simulate interactions without starting a study
+  session or switching applications. An overlay-ready handshake restores state on renderer reload, and view
+  changes / reloads / renderer exits restore click-through. Display changes update primary-display bounds.
+- 2026-10-16 — M1 desktop verification: Electron initially clamped the window to the work area; `type: 'panel'`
+  plus `enableLargerThanScreen: true` fixed it. Native bounds now exactly match the primary display (1408×881
+  display points on this Retina Mac). Local DevTools checks verified every preview, the control preview button,
+  all six overlay actions, mouse-hover changes to native hit testing, return to click-through on empty space,
+  reduced-motion emulation, note expiry using an injected clock, and state recovery after renderer reload.
+  Inspected an overlay-only screenshot; no desktop frames were recorded or persisted.
+- 2026-10-16 — M1 final checks: `npm run typecheck`, `npm test` (11 tests), `npm run lint`,
+  `npm run build`, and `git diff --check` passed. The final desktop run also verified snooze expiry,
+  renderer-reload recovery, and clamping of note/arrow labels at normalized display-edge coordinates.
+- 2026-10-16 — M1 manual checks pending: `getMediaAccessStatus('screen')` returns `denied`, so no screen
+  capture was attempted and exclusion remains unverified. Electron's current docs warn that ScreenCaptureKit
+  can include protected windows; AGENTS.md §9 now records this limitation and the prompt fallback for M3.
+  After granting Screen Recording and restarting, verify capture exclusion, full-screen Chrome visibility,
+  and physical click-through on the demo laptop before marking the remaining M1 checks complete.
