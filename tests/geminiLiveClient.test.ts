@@ -5,6 +5,7 @@ import type { LiveSessionContext } from '../src/main/gemini/types'
 const sdk = vi.hoisted(() => ({
   callbacks: undefined as undefined | { onmessage: (message: unknown) => void },
   config: undefined as unknown,
+  configs: [] as unknown[],
   turns: [] as unknown[],
   media: [] as unknown[],
   responses: [] as unknown[],
@@ -20,6 +21,7 @@ vi.mock('@google/genai', () => ({
     live = { connect: async ({ callbacks, config }: { callbacks: typeof sdk.callbacks; config: unknown }) => {
       sdk.callbacks = callbacks
       sdk.config = config
+      sdk.configs.push(config)
       return {
         sendClientContent: (turn: unknown) => sdk.turns.push(turn),
         sendRealtimeInput: (media: unknown) => sdk.media.push(media),
@@ -42,6 +44,7 @@ const context: LiveSessionContext = {
 beforeEach(() => {
   sdk.callbacks = undefined
   sdk.config = undefined
+  sdk.configs.length = 0
   sdk.turns.length = 0
   sdk.media.length = 0
   sdk.responses.length = 0
@@ -115,6 +118,26 @@ describe('GeminiLiveClient transport', () => {
     sdk.callbacks?.onmessage({ serverContent: { inputTranscription: { text: '   ' } } })
     expect(events).toContainEqual({ type: 'user-transcription', text: 'Take me back.' })
     expect(events.filter((event) => (event as { type?: string }).type === 'user-transcription')).toHaveLength(1)
+    await client.disconnect()
+  })
+
+  it('resumes after goAway and forwards media buffered during the handoff', async () => {
+    const client = new GeminiLiveClient('test-key')
+    const events: unknown[] = []
+    client.onEvent((event) => events.push(event))
+    await client.connect(context)
+    sdk.callbacks?.onmessage({ sessionResumptionUpdate: { resumable: true, newHandle: 'resume-1' } })
+    sdk.callbacks?.onmessage({ goAway: {} })
+    client.sendFrame('ZnJhbWU=')
+    client.sendTurn({ tag: 'CHECK', text: '[CHECK] after reconnect', turnComplete: true })
+
+    await vi.waitFor(() => expect(sdk.configs).toHaveLength(2), { timeout: 2_000 })
+    expect(sdk.configs[1]).toMatchObject({ sessionResumption: { handle: 'resume-1' } })
+    expect(sdk.media).toContainEqual({ video: { data: 'ZnJhbWU=', mimeType: 'image/jpeg' } })
+    expect(sdk.turns).toContainEqual({
+      turns: [{ role: 'user', parts: [{ text: '[CHECK] after reconnect' }] }], turnComplete: true,
+    })
+    expect(events).toContainEqual({ type: 'connection', state: 'connected', resumed: true })
     await client.disconnect()
   })
 })

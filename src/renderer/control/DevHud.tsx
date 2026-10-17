@@ -13,13 +13,14 @@ export function DevHud({ snapshot }: { snapshot: SessionSnapshot }) {
         <div><dt>Microphone</dt><dd>{snapshot.micOpen ? 'listening' : 'off'}</dd></div>
         <div><dt>Rule</dt><dd>{stats.ruleVerdict ?? '—'}</dd></div>
         <div><dt>Frames/min</dt><dd>{stats.framesPerMinute}</dd></div>
+        <div><dt>Screen capture</dt><dd>{stats.capture?.state ?? 'off'}{stats.capture?.error ? ` · ${stats.capture.error}` : ''}</dd></div>
         <div><dt>Resume handle</dt><dd>{handleAge}</dd></div>
       </dl>
       <p><strong>Current window:</strong> {stats.currentWindow
         ? `${stats.currentWindow.app} · ${stats.currentWindow.title}` : 'none yet'}</p>
-      <p><strong>Model status:</strong> {snapshot.lastStatus
+      <p><strong>Last AI screen check:</strong> {snapshot.lastStatus
         ? `${snapshot.lastStatus.on_task ? 'on task' : 'off task'} · ${snapshot.lastStatus.activity} · ${Math.round(snapshot.lastStatus.confidence * 100)}%`
-        : 'none yet'}</p>
+        : 'none yet'}{stats.ruleVerdict === 'on' ? ' · no new check needed while the task window is active' : ''}</p>
       <details>
         <summary>Recent state changes ({stats.transitions.length})</summary>
         <ol>{stats.transitions.map((change, index) => (

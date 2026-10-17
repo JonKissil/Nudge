@@ -15,6 +15,8 @@ const api: MediaApi = {
   onFullFrameRequest: (listener) => subscribe(IPC.frameRequestFull, IpcSchemas[IPC.frameRequestFull], listener),
   onCaptureSet: (listener) => subscribe(IPC.captureSet, IpcSchemas[IPC.captureSet], listener),
   sendCaptureStatus: (status) => send(IPC.captureStatus, status),
+  onMicTestStart: (listener) => subscribe(IPC.micTestStart, IpcSchemas[IPC.micTestStart], listener),
+  sendMicTestResult: (result) => send(IPC.micTestResult, result),
   ready: () => send(IPC.mediaReady, {}),
 }
 contextBridge.exposeInMainWorld('nudge', api)

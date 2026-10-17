@@ -25,7 +25,6 @@
 .note strong { font-weight: 600; color: #4b5b4c; }
 .note p { margin: 4px 0; }
 .footer { border-top: 1px solid #dfe3d9; padding-top: 17px; display: flex; justify-content: space-between; gap: 12px; color: #788171; font-size: 10px; }
-<<<<<<< HEAD
 .preview { border: 1px dashed #c8d1c1; border-radius: 12px; padding: 16px; margin-top: 20px; color: #64725f; font-size: 12px; line-height: 1.6; }
 .previewHeader { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
 .previewHeader strong { color: #344e40; font-weight: 600; }
@@ -35,27 +34,23 @@
 .previewActions button { border: 1px solid #cdd6c5; background: #e8eee1; color: #344e40; border-radius: 7px; padding: 8px 10px; cursor: pointer; font-size: 11px; }
 .previewActions button:disabled { opacity: .5; cursor: default; }
 .preview .previewStatus { margin: 10px 0 0; font-size: 10px; }
-<<<<<<< Updated upstream
-=======
->>>>>>> f5bb2fc (Scaffold)
-=======
-.settings { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; color: #526450; font-size: 12px; }
-.settings label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
-.settings p { flex-basis: 100%; margin: 0; color: #7a8478; font-size: 11px; }
-.hud { border: 1px solid #d9ded5; background: #fbfcf8; border-radius: 12px; padding: 16px; margin-top: 16px; color: #526450; font-size: 11px; line-height: 1.5; }
-.hud p { margin: 8px 0; overflow-wrap: anywhere; }
-.hudGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(95px, 1fr)); gap: 8px; margin: 12px 0; }
-.hudGrid div { background: #eff3eb; padding: 8px; border-radius: 8px; }
-.hudGrid dt { color: #798777; font-size: 10px; }
-.hudGrid dd { margin: 2px 0 0; color: #334938; font-weight: 600; }
-.hud details { margin-top: 7px; }
-.hud summary { cursor: pointer; }
-.hud ol { margin: 5px 0 0; padding-left: 18px; }
-.permissions { border: 1px solid #d9ded5; border-radius: 12px; padding: 16px; margin-top: 16px; color: #526450; font-size: 12px; }
-.permissions p { line-height: 1.5; }
-.permissions ul { list-style: none; padding: 0; margin: 12px 0 0; }
-.permissions li { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #e6e9e1; padding: 9px 0; }
-.permissions small { display: block; color: #7e8b7c; margin-top: 2px; }
-.permissions button { border: 1px solid #cdd6c5; background: #e8eee1; color: #344e40; border-radius: 7px; padding: 6px 9px; cursor: pointer; font-size: 11px; }
->>>>>>> Stashed changes
+.lockStep, .sessionActions { border-top: 1px solid #e2e7de; padding-top: 14px; }
+.lockStep p, .sessionActions p { margin: 0; color: #607364; font-size: 12px; line-height: 1.6; }
+.lockStep button, .sessionActions button { width: 100%; }
+.settings { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 18px; font-size: 12px; color: #526754; }
+.settings label { display: flex; align-items: center; gap: 6px; }
+.permissions, .hud { border: 1px solid #d9e1d4; background: #fffefa; border-radius: 12px; padding: 16px; margin-top: 18px; font-size: 12px; line-height: 1.5; }
+.permissions p, .hud p { margin: 10px 0; color: #64725f; }
+.permissions ul { list-style: none; margin: 12px 0 0; padding: 0; }
+.permissions li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0; border-top: 1px solid #eef0e9; }
+.permissions small { color: #778876; margin-left: 5px; }
+.permissions button { border: 1px solid #cdd6c5; border-radius: 7px; background: #e8eee1; color: #344e40; padding: 6px 9px; cursor: pointer; }
+.permissions button:disabled { cursor: default; opacity: .5; }
+.permissionActions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.hudGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+.hudGrid div { border-radius: 7px; background: #f5f7f1; padding: 8px; }
+.hudGrid dt { color: #758174; font-size: 10px; }
+.hudGrid dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.hud details { margin-top: 8px; }
+.hud ol { padding-left: 18px; }
 @media (max-width: 500px) { .shell { padding: 24px; } .shell h1 { font-size: 32px; } }

@@ -18,10 +18,8 @@ export function App() {
   const [minutes, setMinutes] = useState(30)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-<<<<<<< HEAD
   const [previewBusy, setPreviewBusy] = useState(false)
-=======
->>>>>>> f5bb2fc (Scaffold)
+  const [now, setNow] = useState(Date.now())
 
   useEffect(() => {
     let active = true
@@ -35,6 +33,11 @@ export function App() {
     }).catch(() => { if (active) setError('Could not load the app. Please restart Nudge.') })
     return () => { active = false; unsubscribe() }
   }, [])
+  useEffect(() => {
+    if (!snapshot?.lockWindowAt) return
+    const timer = setInterval(() => setNow(Date.now()), 100)
+    return () => clearInterval(timer)
+  }, [snapshot?.lockWindowAt])
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
@@ -47,7 +50,6 @@ export function App() {
     finally { setBusy(false) }
   }
 
-<<<<<<< HEAD
   async function previewOverlay(action: 'next' | 'hide'): Promise<void> {
     setPreviewBusy(true)
     setError('')
@@ -58,36 +60,30 @@ export function App() {
     finally { setPreviewBusy(false) }
   }
 
-<<<<<<< Updated upstream
-=======
->>>>>>> f5bb2fc (Scaffold)
-=======
-  async function changeSetting(setting: 'demoMode' | 'showHud', enabled: boolean): Promise<void> {
+  async function command(action: () => Promise<{ ok: boolean; error?: string }>, failure: string): Promise<void> {
+    setBusy(true)
     setError('')
     try {
-      const result = await getApi().setSettings({ [setting]: enabled })
-      if (!result.ok) setError(result.error)
-      else if (setting === 'demoMode' && enabled && snapshot?.state === 'IDLE') {
-        setTask(DEMO_TASK)
-        setMinutes(30)
-      }
-    } catch { setError('Could not update this setting. Please try again.') }
+      const result = await action()
+      if (!result.ok) setError(result.error ?? failure)
+    } catch { setError(failure) }
+    finally { setBusy(false) }
   }
 
->>>>>>> Stashed changes
+  async function setDemoMode(enabled: boolean): Promise<void> {
+    await command(() => getApi().setSettings({ demoMode: enabled, showHud: enabled || snapshot?.settings.showHud || false }),
+      'Could not change demo mode.')
+    if (enabled && (!task.trim() || task === snapshot?.task)) { setTask(DEMO_TASK); setMinutes(30) }
+  }
+
+  const active = snapshot && !['IDLE', 'SETUP', 'ENDED'].includes(snapshot.state)
+  const remaining = snapshot?.lockWindowAt ? Math.max(1, Math.ceil((snapshot.lockWindowAt - now) / 1000)) : 0
+
   return (
     <main className={styles.shell}>
       <header className={styles.header}>
         <span className={styles.brand}><span className={styles.mark} aria-hidden="true">↗</span> Nudge</span>
-<<<<<<< Updated upstream
-<<<<<<< HEAD
-        <span className={styles.badge}>Early build · M1</span>
-=======
-        <span className={styles.badge}>Early build · M0</span>
->>>>>>> f5bb2fc (Scaffold)
-=======
-        <span className={styles.badge}>Early build</span>
->>>>>>> Stashed changes
+        <span className={styles.badge}>Study session</span>
       </header>
       <p className={styles.eyebrow}>A LITTLE COMPANY FOR YOUR FOCUS</p>
       <h1>One thing at a time.</h1>
@@ -102,23 +98,35 @@ export function App() {
             onChange={(event) => setMinutes(event.target.valueAsNumber)} />
           <span>minutes</span>
         </div>
-        <button type="submit" disabled={!snapshot || busy || !task.trim()}>Save task <span aria-hidden="true">↗</span></button>
-        {snapshot?.state === 'SETUP' && <p role="status" className={styles.saved}>Task saved. Window locking is coming next.</p>}
+        <button type="submit" disabled={!snapshot || busy || !task.trim() || Boolean(active)}>Save task <span aria-hidden="true">↗</span></button>
+        {snapshot?.state === 'SETUP' && <div className={styles.lockStep}>
+          <p>Open your task document in Chrome, then lock that window. You’ll have three seconds to switch to it.</p>
+          <button type="button" disabled={busy || Boolean(snapshot.lockWindowAt)}
+            onClick={() => { void command(() => getApi().lockTaskWindow(), 'Could not lock the task window.') }}>
+            {snapshot.lockWindowAt ? `Switch to your document · ${remaining}` : 'Lock task window'}
+          </button>
+          {snapshot.lockError && <p role="alert" className={styles.error}>{snapshot.lockError}</p>}
+        </div>}
+        {active && <div className={styles.sessionActions}>
+          <p role="status">{snapshot?.state} · {snapshot?.taskWindow?.title ?? 'Task window locked'}</p>
+          <button type="button" onClick={() => { void command(() => getApi().togglePause(), 'Could not change pause state.') }}>
+            {snapshot?.state === 'PAUSED' ? 'Resume session' : 'Pause session'}
+          </button>
+          <button type="button" onClick={() => { void command(() => getApi().endSession(), 'Could not end the session.') }}>
+            End session
+          </button>
+        </div>}
         {error && <p role="alert" className={styles.error}>{error}</p>}
       </form>
-<<<<<<< Updated upstream
-<<<<<<< HEAD
-=======
       <section className={styles.settings} aria-label="Session settings">
         <label><input type="checkbox" checked={snapshot?.settings.demoMode ?? false}
-          onChange={(event) => { void changeSetting('demoMode', event.target.checked) }} /> Demo mode</label>
+          onChange={(event) => { void setDemoMode(event.target.checked) }} /> Demo timing</label>
         <label><input type="checkbox" checked={snapshot?.settings.showHud ?? false}
-          onChange={(event) => { void changeSetting('showHud', event.target.checked) }} /> Show live status</label>
-        <p>Voice: ⌘⇧Space · Pause: ⌘⇧P · Live status: ⌘⇧D</p>
+          onChange={(event) => { void command(() => getApi().setSettings({ showHud: event.target.checked }),
+            'Could not change the status display.') }} /> Show live status</label>
       </section>
-      {snapshot?.settings.showHud && <DevHud snapshot={snapshot} />}
       <Permissions api={getApi()} />
->>>>>>> Stashed changes
+      {snapshot?.settings.showHud && <DevHud snapshot={snapshot} />}
       <section className={styles.preview} aria-label="Overlay preview">
         <div className={styles.previewHeader}><strong>Overlay preview</strong><span>Development</span></div>
         <p>Cycle through the pill, check-in, arrow, next step, captions, and session states. Buttons simulate their actions.</p>
@@ -130,15 +138,13 @@ export function App() {
         <p role="status" className={styles.previewStatus}>Showing: {snapshot?.overlayPreview ?? 'hidden'}
           {snapshot?.stats.logs.at(-1)?.startsWith('Overlay preview:') && ` · ${snapshot.stats.logs.at(-1)}`}</p>
       </section>
-=======
->>>>>>> f5bb2fc (Scaffold)
       <aside className={styles.note}>
         <strong>Your space, your pace.</strong>
-        <p>The live study flow is being connected. For now, you can save a task, preview the overlay, and check permissions.</p>
+        <p>You can pause any time with ⌘⇧P. Toggle voice with ⌘⇧Space, or use the on-screen buttons.</p>
       </aside>
       <footer className={styles.footer}>
         <span>Desktop connection: {snapshot ? 'ready' : 'loading'}</span>
-        <span>{snapshot?.state === 'SETUP' ? 'Task ready' : 'Ready when you are'}</span>
+        <span>{snapshot?.state === 'SETUP' ? 'Task ready to lock' : snapshot?.state ?? 'Ready when you are'}</span>
       </footer>
     </main>
   )

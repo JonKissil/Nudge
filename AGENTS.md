@@ -81,12 +81,8 @@ Generality (Windows, other browsers, multi-monitor) comes later and is out of sc
 - **The app owns time.** Grace periods, snoozes, and nudge rate limits are deterministic code, never model judgment.
 - **Deterministic first, model second.** Window rules settle the easy cases; the model only judges ambiguous screens.
 - **The Live session runs in main (Node)**, not the renderer, so the API key never reaches a renderer and we can set
-<<<<<<< HEAD
   `apiVersion: 'v1beta'` without ephemeral-token constraints. Proactive audio is permanently enabled on
   `gemini-3.8-live` (per the current model page); do not set `proactiveAudio: false`.
-=======
-  `apiVersion: 'v1beta'` (needed for proactive audio) without ephemeral-token constraints.
->>>>>>> f5bb2fc (Scaffold)
 
 ---
 
@@ -202,11 +198,7 @@ const config = {
   mediaResolution: MediaResolution.MEDIA_RESOLUTION_LOW, // raise to MEDIUM only if it can't read the doc
   contextWindowCompression: { slidingWindow: {} },       // REQUIRED: audio+video sessions die at 2 min without it
   sessionResumption: { handle: lastHandle ?? undefined },
-<<<<<<< HEAD
   // No proactivity field: gemini-3.8-live enables proactive audio by default.
-=======
-  proactivity: { proactiveAudio: true },                 // lets the model choose not to respond; verify on 3.8
->>>>>>> f5bb2fc (Scaffold)
   inputAudioTranscription: {},
   outputAudioTranscription: {},
   speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
@@ -267,14 +259,9 @@ On invalid arguments, reply `{ ok: false, error }`. Never throw. Always send a t
 | `end_checkin` | — | Close the mic. | SILENT |
 | `set_task` | `task: string`, `minutes: int` | Optional voice-driven setup. | WHEN_IDLE |
 
-<<<<<<< HEAD
 > The current API reference and `@google/genai` 2.30.0 place `scheduling` at the top level of
 > `FunctionResponse` (`{ id, name, response, scheduling }`). The Live API Tool use example still shows it inside
 > `response`; use the API reference/SDK shape. `SILENT` and `WHEN_IDLE` are the values used here.
-=======
-> Scheduling values (`SILENT` / `WHEN_IDLE` / `INTERRUPT…`) and where they go in the `FunctionResponse` must be
-> checked against the Live API **Tool use** page before implementing. Spelling has varied between docs pages.
->>>>>>> f5bb2fc (Scaffold)
 
 Tool responses tell the truth, e.g. `{ ok: true }`, `{ ok: false, error: "Chrome tab not found" }`, or
 `{ ok: true, arrived: true }`. The model is instructed never to claim success without `ok: true`.
@@ -402,7 +389,6 @@ export const DEMO = { ...DEFAULTS, tickMs: 4_000, graceMs: 15_000, checkinSilenc
 - `BrowserWindow` covering the primary display's bounds: `transparent: true, frame: false, focusable: false,
   hasShadow: false, skipTaskbar: true`; `setAlwaysOnTop(true, 'screen-saver')`;
   `setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })`; `setIgnoreMouseEvents(true, { forward: true })`.
-<<<<<<< HEAD
   On macOS, use `type: 'panel'` and `enableLargerThanScreen: true` so the window covers the full display,
   including the menu bar / Dock areas, rather than being clamped to the work area.
 - **Interactive elements** (the nudge card's buttons, the note's dismiss ✕): on `mouseenter`, ask main to call
@@ -412,13 +398,6 @@ export const DEMO = { ...DEFAULTS, tickMs: 4_000, graceMs: 15_000, checkinSilenc
   that newer macOS capture apps using ScreenCaptureKit can still capture protected windows.
   **Verify this on the demo Mac in the first hours.** Record the result in `TASKS.md`; until exclusion is verified,
   tell the model in the system instruction that the small "Nudge" UI is its own and should be ignored for task judgment.
-=======
-- **Interactive elements** (the nudge card's buttons, the note's dismiss ✕): on `mouseenter`, ask main to call
-  `setIgnoreMouseEvents(false)`; on `mouseleave`, set it back to `(true, { forward: true })`.
-- **Hide the overlay from the model:** `overlay.setContentProtection(true)` should exclude it from screen capture.
-  **Verify this on the demo Mac in the first hours.** If the overlay still shows up in frames, note it in `TASKS.md`
-  and tell the model in the system instruction that the small "Nudge" UI is its own.
->>>>>>> f5bb2fc (Scaffold)
 - **Components:**
   - `Pill`: small, top-right. Shows state (focused / snoozed 4:12 / paused) and has a pause button.
   - `NudgeCard`: the nudge text plus three buttons that mirror voice: *Take me back*, *5 more min*, *This is for my task*.
@@ -499,6 +478,9 @@ Define a zod schema for every payload. Channel names live in `src/shared/ipc.ts`
 'audio:flush'    {}
 'frame:request-full' {}
 'capture:set'    { running: boolean }
+'mic:test-start' { id: string }                                      // local probe, no Gemini forwarding
+// media → main (local probe)
+'mic:test-result' { id: string; ok: boolean; chunks: number; peak: number; error?: string }
 // main → overlay
 'overlay:state'  { pill: PillState; nudge?: NudgeView; arrow?: ArrowView; notes: NoteView[]; caption?: string }
 // overlay → main
@@ -508,6 +490,9 @@ Define a zod schema for every payload. Channel names live in `src/shared/ipc.ts`
 'session:start'  { task: string; minutes: number }
 'session:lock-window' {}
 'session:end'    {}
+'session:pause-toggle' {}
+'mic:test'       {}                                                  // control asks main to run local probe
+'permissions:request-microphone' {}
 'session:snapshot' { state: SessionState; taskWindow?: WindowInfo; lastStatus?: Status; conn: ConnState; stats: HudStats }
 'settings:set'   Partial<Settings>
 ```

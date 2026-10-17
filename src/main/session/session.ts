@@ -1,18 +1,15 @@
-<<<<<<< Updated upstream
-<<<<<<< HEAD
-import { app, ipcMain } from 'electron'
-=======
-import { app, ipcMain, screen } from 'electron'
->>>>>>> Stashed changes
+import { app, ipcMain, screen, systemPreferences } from 'electron'
+import { randomUUID } from 'node:crypto'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { z } from 'zod'
 import { DEFAULTS, DEMO, DEMO_TASK } from '../../shared/config'
 import { EmptySchema, IPC, IpcSchemas, type IpcChannel, type IpcPayload } from '../../shared/ipc'
-import { ActionResultSchema, OverlayStateSchema, SessionSnapshotSchema, WindowInfoSchema } from '../../shared/types'
+import { ActionResultSchema, MicTestResultSchema, OverlayStateSchema, SessionSnapshotSchema, WindowInfoSchema } from '../../shared/types'
 import type {
   ActionResult, NormalizedBox, NoteView, OverlayAction, OverlayPreview, OverlayState, RuleVerdict,
   SessionSnapshot, WindowInfo,
 } from '../../shared/types'
+import type { MicTestResult } from '../../shared/types'
 import { GeminiLiveClient } from '../gemini/liveClient'
 import type { AppWindows } from '../windows'
 import { StudyEngine, createStudyToolHandlers } from './engine'
@@ -61,31 +58,9 @@ export function registerScaffoldIpc(
   let noteSerial = 0
   let observed: { window: WindowInfo; verdict: RuleVerdict; matchesTask: boolean } | undefined
   let handleReceivedAt: number | undefined
-<<<<<<< Updated upstream
-  const frameTimes: number[] = []
-=======
-import { ipcMain } from 'electron'
-import type { IpcMainInvokeEvent } from 'electron'
-import type { z } from 'zod'
-import { DEMO_TASK } from '../../shared/config'
-import { EmptySchema, IPC, IpcSchemas, type IpcChannel } from '../../shared/ipc'
-import { ActionResultSchema, OverlayStateSchema, SessionSnapshotSchema } from '../../shared/types'
-import type { ActionResult, SessionSnapshot } from '../../shared/types'
-import type { AppWindows } from '../windows'
-
-// M0 only stores setup data. The reducer, timers, and Live connection arrive in M3/M4.
-export function registerScaffoldIpc(getWindows: () => AppWindows | undefined): void {
-  const demoMode = process.env.DEMO_MODE === '1'
-  let snapshot: SessionSnapshot = SessionSnapshotSchema.parse({
-    state: 'IDLE', conn: 'disconnected', task: demoMode ? DEMO_TASK : '', minutes: 30,
-    settings: { demoMode, showHud: demoMode },
-    stats: { framesPerMinute: 0, resumptionHandleAgeMs: null, transitions: [], logs: [] },
-  })
->>>>>>> f5bb2fc (Scaffold)
-=======
+  let pendingMicTest: { id: string; resolve: (result: MicTestResult) => void; timer: ReturnType<typeof setTimeout> } | undefined
   let checkinMicOpen = false
   let pushToTalkOpen = false
->>>>>>> Stashed changes
 
   const isSender = (sender: Electron.WebContents, kind: keyof AppWindows): boolean =>
     getWindows()?.[kind].webContents === sender
@@ -93,11 +68,7 @@ export function registerScaffoldIpc(getWindows: () => AppWindows | undefined): v
   const publish = (): void => {
     const windows = getWindows()
     if (!windows) return
-<<<<<<< Updated upstream
-<<<<<<< HEAD
-=======
     sessionNotes = visibleNotes(sessionNotes, Date.now())
->>>>>>> Stashed changes
     snapshot = { ...snapshot, stats: { ...snapshot.stats,
       resumptionHandleAgeMs: handleReceivedAt === undefined ? null : Math.max(0, Date.now() - handleReceivedAt),
     } }
@@ -207,6 +178,7 @@ export function registerScaffoldIpc(getWindows: () => AppWindows | undefined): v
     userSpeech: () => { void study.dispatch({ type: 'USER_SPEECH' }) },
     micSet: (open) => getWindows()?.media.webContents.send(IPC.micSet, { open }),
     connection: (conn) => {
+      if (conn === 'disconnected') handleReceivedAt = undefined
       snapshot = { ...snapshot, conn }
       syncMic()
       log(`Live connection: ${conn}`)
@@ -262,27 +234,13 @@ export function registerScaffoldIpc(getWindows: () => AppWindows | undefined): v
 
   const handle = <T>(channel: IpcChannel, schema: z.ZodType<T>, action: (payload: T) => ActionResult | Promise<ActionResult>): void => {
     ipcMain.handle(channel, async (event: IpcMainInvokeEvent, payload: unknown) => {
-=======
-    windows.control.webContents.send(IPC.sessionSnapshot, SessionSnapshotSchema.parse(snapshot))
-    windows.overlay.webContents.send(IPC.overlayState, OverlayStateSchema.parse({
-      pill: { state: snapshot.state, offline: false }, notes: [],
-    }))
-  }
-
-  const handle = <T>(channel: IpcChannel, schema: z.ZodType<T>, action: (payload: T) => ActionResult): void => {
-    ipcMain.handle(channel, (event: IpcMainInvokeEvent, payload: unknown) => {
->>>>>>> f5bb2fc (Scaffold)
       if (!isSender(event.sender, 'control') || event.senderFrame !== event.sender.mainFrame) {
         return { ok: false, error: 'This command is only available in the control window.' }
       }
       const parsed = schema.safeParse(payload)
       if (!parsed.success) return { ok: false, error: 'Invalid command payload.' }
       try {
-<<<<<<< HEAD
         const result = ActionResultSchema.parse(await action(parsed.data))
-=======
-        const result = ActionResultSchema.parse(action(parsed.data))
->>>>>>> f5bb2fc (Scaffold)
         publish()
         return result
       } catch {
@@ -297,48 +255,52 @@ export function registerScaffoldIpc(getWindows: () => AppWindows | undefined): v
       || !EmptySchema.safeParse(payload).success) throw new Error('Invalid snapshot request')
     return SessionSnapshotSchema.parse(snapshot)
   })
+  ipcMain.handle(IPC.micTest, async (event, payload: unknown) => {
+    const id = randomUUID()
+    const failed = (error: string): MicTestResult => ({ id, ok: false, chunks: 0, peak: 0, error })
+    if (!isSender(event.sender, 'control') || event.senderFrame !== event.sender.mainFrame
+      || !IpcSchemas[IPC.micTest].safeParse(payload).success) return failed('Control window only.')
+    if (!['IDLE', 'SETUP', 'ENDED'].includes(study.state.phase)) {
+      return failed('End the study session before testing the microphone.')
+    }
+    if (systemPreferences.getMediaAccessStatus('microphone') !== 'granted') {
+      return failed('Grant Microphone access in Mac settings, then restart Nudge.')
+    }
+    if (pendingMicTest) return failed('A microphone check is already running.')
+    const media = getWindows()?.media
+    if (!media || media.isDestroyed()) return failed('The media window is unavailable.')
+    return new Promise<MicTestResult>((resolve) => {
+      const timer = setTimeout(() => {
+        pendingMicTest = undefined
+        resolve(failed('Microphone check timed out. Please try again.'))
+      }, 8000)
+      pendingMicTest = { id, resolve, timer }
+      media.webContents.send(IPC.micTestStart, { id })
+    })
+  })
   handle(IPC.sessionStart, IpcSchemas[IPC.sessionStart], (input) => {
     if (snapshot.state !== 'IDLE' && snapshot.state !== 'ENDED' && snapshot.state !== 'SETUP') {
       return { ok: false, error: 'End the current session before starting another.' }
     }
-<<<<<<< Updated upstream
-<<<<<<< HEAD
-    return study.dispatch({ type: 'START_SETUP', ...input })
-  })
-  handle(IPC.sessionEnd, EmptySchema, () => study.dispatch({ type: 'END' }))
-=======
-    snapshot = { ...snapshot, ...input, state: 'SETUP' }
-    return { ok: true }
-  })
-  handle(IPC.sessionEnd, EmptySchema, () => {
-    snapshot = { ...snapshot, state: 'ENDED' }
-    return { ok: true }
-  })
->>>>>>> f5bb2fc (Scaffold)
-  handle(IPC.sessionLockWindow, EmptySchema, () => ({
-    ok: false, error: 'Task window locking is scheduled for M2.',
-  }))
-  handle(IPC.settingsSet, IpcSchemas[IPC.settingsSet], (settings) => {
-    snapshot = { ...snapshot, settings: { ...snapshot.settings, ...settings } }
-=======
-    sessionNotes = []
     perception.cancelLock()
+    snapshot = { ...snapshot, lockError: undefined }
+    sessionNotes = []
     return study.dispatch({ type: 'START_SETUP', ...input })
   })
   handle(IPC.sessionEnd, EmptySchema, async () => {
     perception.cancelLock()
     const result = await study.dispatch({ type: 'END' })
     sessionNotes = []
+    publish()
     return result
   })
-  handle(IPC.sessionLockWindow, EmptySchema, () => perception.lockWindow())
-  handle(IPC.captureSet, IpcSchemas[IPC.captureSet], ({ running }) => {
-    if (running && study.state.phase === 'PAUSED') return study.dispatch({ type: 'RESUME' })
-    if (!running && !['IDLE', 'SETUP', 'PAUSED', 'ENDED'].includes(study.state.phase)) {
-      return study.dispatch({ type: 'PAUSE' })
+  handle(IPC.sessionPauseToggle, EmptySchema, () => {
+    if (['IDLE', 'SETUP', 'ENDED'].includes(study.state.phase)) {
+      return { ok: false, error: 'Start a study session before pausing.' }
     }
-    return { ok: false, error: 'Lock your task window first.' }
+    return study.dispatch({ type: study.state.phase === 'PAUSED' ? 'RESUME' : 'PAUSE' })
   })
+  handle(IPC.sessionLockWindow, EmptySchema, () => perception.lockWindow())
   handle(IPC.settingsSet, IpcSchemas[IPC.settingsSet], async (settings) => {
     const next = { ...snapshot.settings, ...settings,
       ...(settings.demoMode === true ? { showHud: true } : {}) }
@@ -350,10 +312,9 @@ export function registerScaffoldIpc(getWindows: () => AppWindows | undefined): v
       await study.dispatch({ type: 'SET_CONFIG', config })
       if (next.demoMode && snapshot.state === 'IDLE') snapshot = { ...snapshot, task: DEMO_TASK, minutes: 30 }
     }
->>>>>>> Stashed changes
+    publish()
     return { ok: true }
   })
-<<<<<<< HEAD
   handle(IPC.overlayPreview, IpcSchemas[IPC.overlayPreview], ({ action }) => {
     if (app.isPackaged) return { ok: false, error: 'Overlay previews are available in development builds.' }
     const index = OVERLAY_PREVIEWS.indexOf(snapshot.overlayPreview ?? 'hidden')
@@ -366,24 +327,16 @@ export function registerScaffoldIpc(getWindows: () => AppWindows | undefined): v
   // Validate all incoming event channels before forwarding media or overlay events.
   for (const channel of [
     IPC.frame, IPC.frameFull, IPC.micChunk, IPC.overlayAction, IPC.overlayHover, IPC.overlayReady,
-    IPC.mediaReady, IPC.captureStatus,
+    IPC.mediaReady, IPC.captureStatus, IPC.micTestResult,
   ]) {
     ipcMain.on(channel, (event, payload: unknown) => {
       const kind = channel.startsWith('overlay:') ? 'overlay' : 'media'
-=======
-
-  // Validate all incoming event channels, even while their consumers are scaffold placeholders.
-  for (const channel of [IPC.frame, IPC.frameFull, IPC.micChunk, IPC.overlayAction, IPC.overlayHover]) {
-    ipcMain.on(channel, (event, payload: unknown) => {
-      const kind = channel === IPC.overlayAction || channel === IPC.overlayHover ? 'overlay' : 'media'
->>>>>>> f5bb2fc (Scaffold)
       if (!isSender(event.sender, kind) || event.senderFrame !== event.sender.mainFrame) return
       const parsed = IpcSchemas[channel].safeParse(payload)
       if (!parsed.success) { console.error(`Invalid IPC payload: ${channel}`); return }
       if (channel === IPC.overlayHover) {
         const { interactive } = IpcSchemas[IPC.overlayHover].parse(parsed.data)
         getWindows()?.overlay.setIgnoreMouseEvents(!interactive, { forward: true })
-<<<<<<< HEAD
       } else if (channel === IPC.overlayReady) {
         lastOverlayJson = ''
         lastInteractiveKey = ''
@@ -392,6 +345,13 @@ export function registerScaffoldIpc(getWindows: () => AppWindows | undefined): v
         perception.sendCaptureState()
       } else if (channel === IPC.captureStatus) {
         perception.handleCaptureStatus(IpcSchemas[IPC.captureStatus].parse(parsed.data))
+      } else if (channel === IPC.micTestResult) {
+        const result = MicTestResultSchema.parse(parsed.data)
+        if (pendingMicTest?.id === result.id) {
+          clearTimeout(pendingMicTest.timer)
+          pendingMicTest.resolve(result)
+          pendingMicTest = undefined
+        }
       } else if (channel === IPC.frameFull) {
         perception.handleFullFrame(IpcSchemas[IPC.frameFull].parse(parsed.data))
       } else if (channel === IPC.frame) {
@@ -457,9 +417,4 @@ export function registerScaffoldIpc(getWindows: () => AppWindows | undefined): v
       return { ok: true }
     },
   }
-=======
-      }
-    })
-  }
->>>>>>> f5bb2fc (Scaffold)
 }

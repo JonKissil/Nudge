@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
-  CaptureStatusSchema, OverlayActionSchema, OverlayStateSchema, SessionSnapshotSchema, SessionStartSchema, SettingsSchema,
+  CaptureStatusSchema, MicTestResultSchema, OverlayActionSchema, OverlayStateSchema, SessionSnapshotSchema,
+  SessionStartSchema, SettingsSchema,
 } from './types'
 
 export const IPC = {
@@ -8,12 +9,12 @@ export const IPC = {
   audioPlay: 'audio:play', audioFlush: 'audio:flush', audioChime: 'audio:chime', frameRequestFull: 'frame:request-full',
   captureSet: 'capture:set', overlayState: 'overlay:state', overlayAction: 'overlay:action',
   overlayHover: 'overlay:hover', sessionStart: 'session:start', sessionLockWindow: 'session:lock-window',
-<<<<<<< HEAD
   overlayPreview: 'overlay:preview', overlayReady: 'overlay:ready',
-=======
->>>>>>> f5bb2fc (Scaffold)
   sessionEnd: 'session:end', sessionSnapshot: 'session:snapshot', settingsSet: 'settings:set',
+  sessionPauseToggle: 'session:pause-toggle',
   permissionsStatus: 'permissions:status', permissionsOpen: 'permissions:open',
+  permissionsRequestMicrophone: 'permissions:request-microphone',
+  micTest: 'mic:test', micTestStart: 'mic:test-start', micTestResult: 'mic:test-result',
   mediaReady: 'media:ready', captureStatus: 'capture:status',
 } as const
 
@@ -36,18 +37,20 @@ export const IpcSchemas = {
   [IPC.overlayState]: OverlayStateSchema,
   [IPC.overlayAction]: OverlayActionSchema,
   [IPC.overlayHover]: z.strictObject({ interactive: z.boolean() }),
-<<<<<<< HEAD
   [IPC.overlayPreview]: z.strictObject({ action: z.enum(['next', 'hide']) }),
   [IPC.overlayReady]: EmptySchema,
-=======
->>>>>>> f5bb2fc (Scaffold)
   [IPC.sessionStart]: SessionStartSchema,
   [IPC.sessionLockWindow]: EmptySchema,
   [IPC.sessionEnd]: EmptySchema,
+  [IPC.sessionPauseToggle]: EmptySchema,
   [IPC.sessionSnapshot]: SessionSnapshotSchema,
   [IPC.settingsSet]: SettingsSchema.partial(),
   [IPC.permissionsStatus]: EmptySchema,
-  [IPC.permissionsOpen]: z.strictObject({ kind: z.enum(['screen', 'microphone', 'automation']) }),
+  [IPC.permissionsOpen]: z.strictObject({ kind: z.enum(['screen', 'microphone', 'automation', 'accessibility']) }),
+  [IPC.permissionsRequestMicrophone]: EmptySchema,
+  [IPC.micTest]: EmptySchema,
+  [IPC.micTestStart]: z.strictObject({ id: z.uuid() }),
+  [IPC.micTestResult]: MicTestResultSchema,
 }
 export type IpcChannel = keyof typeof IpcSchemas
 export type IpcPayload<C extends IpcChannel> = z.infer<(typeof IpcSchemas)[C]>

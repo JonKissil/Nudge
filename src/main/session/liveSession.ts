@@ -55,7 +55,8 @@ export class LiveSessionBridge {
     this.active = false
     this.sinks.flushAudio()
     this.sinks.caption('')
-    await this.client.disconnect()
+    try { await this.client.disconnect() }
+    finally { this.sinks.connection('disconnected') }
   }
 
   dispose(): void { this.unsubscribe() }

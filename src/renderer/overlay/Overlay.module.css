@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 :global(*) { box-sizing: border-box; }
 :global(html), :global(body), :global(#root) { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; pointer-events: none; }
 :global(body) { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; color: #283b35; }
@@ -36,7 +35,3 @@
   .arrow, .note { animation: none; }
   .arrow svg { outline: 2px solid #6e925f; outline-offset: 4px; border-radius: 4px; }
 }
-=======
-:global(html), :global(body), :global(#root) { margin: 0; width: 100%; height: 100%; background: transparent; }
-.surface { width: 100%; height: 100%; pointer-events: none; }
->>>>>>> f5bb2fc (Scaffold)

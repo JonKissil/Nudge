@@ -1,5 +1,5 @@
 import type { IpcPayload, IPC } from './ipc'
-import type { ActionResult, SessionSnapshot, SessionStart, Settings, OverlayAction, PermissionStatus } from './types'
+import type { ActionResult, SessionSnapshot, SessionStart, Settings, OverlayAction, PermissionStatus, MicTestResult } from './types'
 
 type Unsubscribe = () => void
 type Listen<C extends keyof IpcPayloadMap> = (listener: (payload: IpcPayloadMap[C]) => void) => Unsubscribe
@@ -12,17 +12,13 @@ export interface ControlApi {
   startSession: (input: SessionStart) => Promise<ActionResult>
   lockTaskWindow: () => Promise<ActionResult>
   endSession: () => Promise<ActionResult>
+  togglePause: () => Promise<ActionResult>
   setSettings: (settings: Partial<Settings>) => Promise<ActionResult>
-<<<<<<< HEAD
   previewOverlay: (action: 'next' | 'hide') => Promise<ActionResult>
-<<<<<<< Updated upstream
-=======
->>>>>>> f5bb2fc (Scaffold)
-=======
-  setCaptureRunning: (running: boolean) => Promise<ActionResult>
   getPermissionStatus: () => Promise<PermissionStatus>
-  openPermissionSettings: (kind: 'screen' | 'microphone' | 'automation') => Promise<ActionResult>
->>>>>>> Stashed changes
+  openPermissionSettings: (kind: 'screen' | 'microphone' | 'automation' | 'accessibility') => Promise<ActionResult>
+  requestMicrophoneAccess: () => Promise<ActionResult>
+  testMicrophone: () => Promise<MicTestResult>
 }
 export interface OverlayApi {
   kind: 'overlay'
@@ -42,6 +38,8 @@ export interface MediaApi {
   onFullFrameRequest: Listen<typeof IPC.frameRequestFull>
   onCaptureSet: Listen<typeof IPC.captureSet>
   sendCaptureStatus: (status: IpcPayload<typeof IPC.captureStatus>) => void
+  onMicTestStart: Listen<typeof IPC.micTestStart>
+  sendMicTestResult: (result: MicTestResult) => void
   ready: () => void
 }
 export type NudgeApi = ControlApi | OverlayApi | MediaApi

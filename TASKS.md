@@ -25,7 +25,6 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 
 ## M1 — Overlay (A, H2–H5)
 
-<<<<<<< HEAD
 - [x] Transparent, click-through, always-on-top overlay over the full primary display; full-screen visibility configured
 - [x] Hover-to-interact toggling for buttons
 - [x] `setContentProtection(true)` enabled
@@ -33,13 +32,6 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 - [x] Components: `Pill`, `NudgeCard`, `Arrow`, `StickyNote`, `Captions`, driven only by `overlay:state`
 - [x] Normalized (0–1) coordinates; reduced-motion support
 - [ ] Manual demo-Mac check: overlay visible over full-screen Chrome; physical clicks pass through outside buttons
-=======
-- [ ] Transparent, click-through, always-on-top overlay over the primary display, visible over full-screen Chrome
-- [ ] Hover-to-interact toggling for buttons
-- [ ] `setContentProtection(true)`; **verify the overlay is absent from captured frames** (record the result in the log)
-- [ ] Components: `Pill`, `NudgeCard`, `Arrow`, `StickyNote`, `Captions`, driven only by `overlay:state`
-- [ ] Normalized (0–1) coordinates; reduced-motion support
->>>>>>> f5bb2fc (Scaffold)
 - **Accept:** a dev button in the control window cycles through every overlay component; clicks pass through
   everywhere except on buttons.
 
@@ -171,7 +163,6 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 - 2026-10-16 — M0 naming: Renamed the app to Nudge in UI copy, Electron/window titles, package metadata,
   preload APIs (`window.nudge` / `NudgeApi`), and project instructions. Typecheck, all 7 tests, lint,
   production build, and desktop launch passed; no old-name references remain in project sources or docs.
-<<<<<<< HEAD
 - 2026-10-16 — M1 implementation: Added all five overlay components, button-only hover interaction, normalized
   anchoring, live snooze countdown, three-minute note fade/removal, reduced-motion styling, and a control-window
   preview cycle with hide/reset. Preview actions stay in main and simulate interactions without starting a study
@@ -214,26 +205,60 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
   System Settings shows Nudge/Electron has not yet requested Screen Recording or Microphone access, and no
   app has requested Automation access. Track A's capture and Chrome-focus paths must trigger those prompts
   before the permissions can be granted and the demo-Mac acceptance boxes can be checked.
-<<<<<<< Updated upstream
-=======
->>>>>>> f5bb2fc (Scaffold)
-=======
-- 2026-10-16 — B / post-rebase integration: Track A's M1 overlay is now connected to live session notes.
-  `pin_next_step` creates a three-minute overlay note, uses an OCR line anchor when supplied, and falls back
-  to the task window's margin when OCR or line lookup is unavailable. Dismiss actions remove live notes.
-  The system prompt now ignores Nudge's own overlay if it appears in captured frames. Fixed a Live turn-queue
-  race so a nudge waiting behind a silent `[CHECK]` still speaks when check-in opens. Typecheck, 33 tests,
-  lint, production build, and a desktop launch with the control window visible passed. Session snapshot
-  updates now avoid resetting overlay button hit testing unless the interactive controls change. Track A's M2
-  perception/window-lock work is still absent, so real frame flow and demo-path acceptance remain open.
-- 2026-10-16 — B / voice and demo hardening: Added Live input transcription as the check-in speech signal,
-  wired the push-to-talk, pause, and HUD shortcuts, and showed microphone state in the overlay. The control
-  window now has a working demo toggle, live status HUD, and permission checklist. Offline mode treats
-  ambiguous windows as on-task and uses a chime plus the card for clear distractions. Typecheck, 36 tests,
-  lint, production build, and desktop launch passed. The desktop UI confirmed demo task prefill and HUD
-  visibility. This development Mac currently reports Screen Recording granted and Microphone denied; no
-  permission was changed. Shortcut behavior and a real microphone check-in still need the demo laptop.
-- 2026-10-16 — B / pitch preparation: Drafted a six-slide deck and three-minute speaker script with
-  honest cost, offline, privacy, and blocker answers. The deck passed package/layout validation and visual
-  inspection. Rehearsals and backup video remain pending until Track A's capture/window-lock path works.
->>>>>>> Stashed changes
+- 2026-10-16 — B / post-rebase integration: Track A's M1 overlay is connected to live session notes.
+  `pin_next_step` creates a three-minute note with an OCR line anchor when available and a margin fallback.
+  Fixed the Live turn queue so a nudge waiting behind `[CHECK]` still speaks. Typecheck, 33 tests, lint,
+  build, and desktop launch passed. M2 perception was still pending at that point.
+- 2026-10-16 — B / voice and demo hardening: Added Live input transcription, push-to-talk, pause, and HUD
+  shortcuts, microphone state in the overlay, a demo toggle, live HUD, permission checklist, and offline
+  rules/chime behavior. Typecheck, 36 tests, lint, build, and desktop launch passed. Screen Recording was
+  granted and Microphone denied on this development Mac; no permission was changed.
+- 2026-10-16 — B / pitch preparation: Drafted a six-slide deck and three-minute speaker script with cost,
+  offline, privacy, and blocker answers. The deck passed package/layout validation and visual inspection.
+  Rehearsals and backup video remain pending until the full demo path works.
+- 2026-10-16 — B / Track A handoff: Reconciled committed rebase conflict markers while retaining M2 window
+  polling and capture, M1 overlay, and B Live/session/voice work. Restored the control-window lock countdown,
+  demo settings, permissions, pause control, and HUD. The lock-to-Live/capture path now builds; typecheck,
+  59 tests, lint, and production build pass. The desktop app launches and saving a task exposes the real
+  lock step. Screen Recording is granted, but Microphone remains denied; a real screen-to-Gemini run,
+  voice check-in, reconnect check, and three full demo passes remain unverified. Track A's focus/OCR/allow
+  action ports are not connected yet.
+- 2026-10-16 — B / local capture smoke test: With Gemini disabled, the lock-to-session path reached
+  `FOCUSED`, capture reported `running`, and the HUD counted frames. Pause changed capture to `off`,
+  resume changed it back to `running`, and End stopped it. The always-on-top overlay initially hid the
+  underlying window from `get-windows`; the active-window wrapper now skips Nudge's own overlay. The UI
+  automation helper was selected as the task window in this run, so the real Chrome tab lock and live
+  screen-to-Gemini behavior remain pending. Accessibility and Microphone both report denied on this Mac.
+- 2026-10-16 — B / microphone permission and probe: Added a native macOS microphone request and a
+  three-second local mic check through the same media-window AudioWorklet used by check-ins. The check
+  reports PCM chunk count and peak level without forwarding test audio to Gemini. The first request
+  inherited ChatGPT's denied status; launching Nudge from Terminal let macOS prompt for separate access.
+  Terminal now has microphone access, Nudge reports `granted`, and the local test received 74 chunks with
+  a 40% peak level in three seconds. The PCM signal calculation is covered by a pure test. A full Gemini
+  voice check-in remains unverified.
+- 2026-10-17 — B / live smoke test: Added Terminal to macOS Screen & System Audio Recording and restarted;
+  Nudge now reports Screen Recording and Microphone granted. A live session connected to Gemini, screen
+  capture ran, and the HUD received a resumption handle. The window lock selected the computer-control
+  helper instead of the intended blank TextEdit document, so the session was ended before checking voice.
+  Capture then reported off. Fixed the HUD to show `disconnected` and clear its stale resumption-handle age
+  when a study session ends. Typecheck, 60 tests, lint, and diff checks pass. The greeting, push-to-talk,
+  real Chrome lock, and reconnect acceptance checks remain open.
+- 2026-10-17 — B / follow-up Live check: A second session connected, streamed frames, received a
+  resumption handle, and reported an on-task judgment for the TextEdit test document on a `[CHECK]` turn.
+  Computer-use windows still displaced the intended task window during the three-second lock, so the
+  locked window was incorrect. Closed the test session; do not count greeting, push-to-talk, or the demo
+  path as verified. A clean manual lock without computer-control activity is needed next.
+- 2026-10-17 — B / manual TextEdit lock and voice check: The student locked the intended TextEdit window
+  without computer-control activity during the countdown. The HUD showed Live connected, screen capture
+  running, and a resumption handle. The student heard the `[SESSION_START]` greeting, opened the mic with
+  ⌘⇧Space, asked what they were working on, heard the correct spoken answer, and closed the mic. Nudge
+  stayed quiet for about five minutes while TextEdit was on task. The student ended the session before
+  15 minutes, so reconnect acceptance remains open. The HUD's old `Model status` label retained a prior
+  judgment when the current window matched the task; relabeled it `Last AI screen check` with an explanation
+  for rule `on`. Typecheck, 60 tests, lint, and diff checks pass; the live app launched from Terminal.
+- 2026-10-17 — B / extended live run: A fresh TextEdit-locked session stayed connected with capture running
+  and a resume handle; the updated HUD wording appeared in the restarted app. The HUD recorded a real
+  `DRIFTING → NUDGING → CHECKIN → SNOOZED` path around 12:52–12:53 AM. Two return attempts reported
+  `The task window could not be opened`, consistent with Track A's focus action still unwired. The study
+  session ended at 12:54:14 AM after about ten minutes; the connection log contained no server reconnect.
+  The 15-minute M3 gate and M4 nudge voice/card acceptance remain open pending the student's report.

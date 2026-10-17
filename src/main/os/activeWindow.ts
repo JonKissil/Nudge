@@ -3,11 +3,19 @@ import { WindowInfoSchema, type WindowInfo } from '../../shared/types'
 
 export async function readActiveWindow(): Promise<WindowInfo | undefined> {
   // Keep the ESM package and its native helper outside the main bundle.
-  const { activeWindow } = await import('get-windows')
-  const result = await activeWindow({
+  const { activeWindow, openWindows } = await import('get-windows')
+  const options = {
     accessibilityPermission: process.platform !== 'darwin' || systemPreferences.isTrustedAccessibilityClient(false),
     screenRecordingPermission: process.platform !== 'darwin' || systemPreferences.getMediaAccessStatus('screen') === 'granted',
-  })
+  }
+  const active = await activeWindow(options)
+  // On macOS, an always-on-top panel can be reported as the active window even though
+  // it is click-through. The next window in front-to-back order is the useful one.
+  const isOwnOverlay = (window: typeof active): boolean => Boolean(window
+    && window.owner.processId === process.pid && /\boverlay\b/iu.test(window.title))
+  const result = isOwnOverlay(active)
+    ? (await openWindows(options)).find((window) => !isOwnOverlay(window))
+    : active
   if (!result) return undefined
   return WindowInfoSchema.parse({
     app: result.owner.name, bundleId: result.platform === 'macos' ? result.owner.bundleId : '',

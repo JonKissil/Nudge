@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import { StrictMode, useCallback, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { OverlayApi } from '../../shared/bridge'
@@ -56,19 +55,6 @@ export function Overlay() {
     {state?.notes.map((note) => <StickyNote key={`${note.id}:${note.expiresAt}`} note={note} {...controls} />)}
     {state?.caption?.trim() && <Captions text={state.caption} />}
   </div>
-=======
-import { StrictMode, useEffect } from 'react'
-import { createRoot } from 'react-dom/client'
-import styles from './Overlay.module.css'
-
-export function Overlay() {
-  useEffect(() => {
-    if (window.nudge.kind !== 'overlay') throw new Error('The overlay preload is unavailable')
-    // M1 will render the Pill, NudgeCard, Arrow, StickyNote, and Captions from this state.
-    return window.nudge.onState(() => {})
-  }, [])
-  return <div className={styles.surface} aria-hidden="true" />
->>>>>>> f5bb2fc (Scaffold)
 }
 
 createRoot(document.getElementById('root')!).render(<StrictMode><Overlay /></StrictMode>)

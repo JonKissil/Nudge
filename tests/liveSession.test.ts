@@ -61,6 +61,7 @@ describe('LiveSessionBridge', () => {
     expect(client.audioStreamEnds).toBe(1)
     expect(sinks.micSet).toHaveBeenLastCalledWith(false)
     expect(client.disconnects).toBe(1)
+    expect(sinks.connection).toHaveBeenLastCalledWith('disconnected')
     bridge.dispose()
   })
 

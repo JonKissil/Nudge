@@ -45,8 +45,14 @@ export type CaptureStatus = z.infer<typeof CaptureStatusSchema>
 export const PermissionStatusSchema = z.strictObject({
   screen: z.enum(['not-determined', 'granted', 'denied', 'restricted', 'unknown']),
   microphone: z.enum(['not-determined', 'granted', 'denied', 'restricted', 'unknown']),
+  accessibility: z.enum(['granted', 'denied']),
 })
 export type PermissionStatus = z.infer<typeof PermissionStatusSchema>
+export const MicTestResultSchema = z.strictObject({
+  id: z.uuid(), ok: z.boolean(), chunks: z.number().int().nonnegative(),
+  peak: z.number().min(0).max(1), error: z.string().optional(),
+})
+export type MicTestResult = z.infer<typeof MicTestResultSchema>
 export const HudStatsSchema = z.strictObject({
   framesPerMinute: z.number().nonnegative(),
   resumptionHandleAgeMs: z.number().nonnegative().nullable(),
@@ -83,13 +89,10 @@ export const OverlayActionSchema = z.strictObject({
   id: z.string().min(1).optional(),
 }).refine((value) => value.kind !== 'dismiss-note' || value.id !== undefined, 'A note id is required')
 export type OverlayAction = z.infer<typeof OverlayActionSchema>
-<<<<<<< HEAD
 export const OverlayPreviewSchema = z.enum([
   'hidden', 'focused', 'nudge', 'guide', 'note', 'captions', 'snoozed', 'paused', 'offline', 'all',
 ])
 export type OverlayPreview = z.infer<typeof OverlayPreviewSchema>
-=======
->>>>>>> f5bb2fc (Scaffold)
 export const SessionStartSchema = z.strictObject({
   task: z.string().trim().min(1).max(1000), minutes: z.number().int().min(1).max(240),
 })
@@ -98,15 +101,10 @@ export const SessionSnapshotSchema = z.strictObject({
   state: SessionStateSchema, taskWindow: WindowInfoSchema.optional(), lastStatus: StatusSchema.optional(),
   conn: ConnStateSchema, stats: HudStatsSchema, settings: SettingsSchema,
   task: z.string(), minutes: z.number().int().min(1).max(240),
-<<<<<<< HEAD
-  overlayPreview: OverlayPreviewSchema.optional(),
-<<<<<<< Updated upstream
-=======
->>>>>>> f5bb2fc (Scaffold)
-=======
   micOpen: z.boolean().optional(),
-  lockWindowAt: z.number().nonnegative().optional(), lockError: z.string().optional(),
->>>>>>> Stashed changes
+  lockWindowAt: z.number().nonnegative().optional(),
+  lockError: z.string().optional(),
+  overlayPreview: OverlayPreviewSchema.optional(),
 })
 export type SessionSnapshot = z.infer<typeof SessionSnapshotSchema>
 export const ActionResultSchema = z.discriminatedUnion('ok', [
