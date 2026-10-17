@@ -558,3 +558,13 @@ completed components; M8 has a draft deck and script.
   cover ready/in-flight adoption, language preparation, failure/retry, stale completion, pre-session
   input/output/tool gates, nonblocking startup, and cancellation. Typecheck, 146 tests, lint, production
   build, and three-renderer dev launch passed. Long-idle/reconnect and the spoken demo remain open.
+- 2026-10-17 — Fixed the “running · The full-resolution frame could not be encoded” warning: the
+  grouped base64 validation regex overflowed V8's call stack on valid large PNGs. Replaced it with a
+  stack-safe scan retaining length, alphabet, and padding checks. Full-frame errors now reject the
+  pending OCR request immediately without stopping JPEG streaming; a successful retry clears the
+  warning, and cancelled encoding cannot restore a running status after Pause/End.
+  An isolated Electron check generated a 3840 × 2160 PNG (37,847,244 base64 characters) and passed it
+  through real renderer encoding, preload validation, IPC, and main validation. Injected delivery
+  failure/retry and a late encoding failure after Pause also passed. Only generated pixels were used;
+  no screen pixels or image payloads were logged or saved. Typecheck, all 150 tests, lint, production
+  build, three-renderer dev launch, and diff checks passed; the test instance was closed.

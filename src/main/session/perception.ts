@@ -162,6 +162,7 @@ export class PerceptionController {
   handleCaptureStatus(status: CaptureStatus): void {
     this.ports.updateSnapshot((snapshot) => ({ ...snapshot, stats: { ...snapshot.stats, capture: status } }))
     if (status.error) this.ports.log(status.error)
+    if (status.state === 'running' && status.error) this.rejectFullFrame(status.error)
     if (['off', 'error'].includes(status.state) && this.captureAllowed()) {
       this.captureDesired = false
       this.rejectFullFrame('Capture stopped')

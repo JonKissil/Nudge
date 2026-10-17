@@ -26,6 +26,13 @@ describe('IPC boundaries', () => {
     ]) expect(schema.safeParse(input).success).toBe(false)
   })
 
+  it('accepts large native-resolution images without overflowing validation and still rejects corrupt data', () => {
+    const pngBase64 = 'A'.repeat(16_000_000)
+    const frame = { pngBase64, width: 3840, height: 2160 }
+    expect(IpcSchemas[IPC.frameFull].safeParse(frame).success).toBe(true)
+    expect(IpcSchemas[IPC.frameFull].safeParse({ ...frame, pngBase64: `${pngBase64.slice(0, -4)}AA=A` }).success).toBe(false)
+  })
+
   it('requires an id to dismiss a note and limits overlay actions', () => {
     const schema = IpcSchemas[IPC.overlayAction]
     expect(schema.safeParse({ kind: 'dismiss-note' }).success).toBe(false)

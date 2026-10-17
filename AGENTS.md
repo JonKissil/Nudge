@@ -515,6 +515,10 @@ export const DEMO = { ...DEFAULTS, tickMs: 4_000, graceMs: 15_000, checkinSilenc
 ## 13. IPC contract (`src/shared/types.ts`)
 
 Define a zod schema for every payload. Channel names live in `src/shared/ipc.ts`.
+Validate media base64 with the stack-safe scan in `src/shared/base64.ts`; repeated regex groups can
+overflow on full-resolution PNGs. Full-frame failures must reject the pending request promptly while
+leaving JPEG streaming running; a successful full-frame retry clears its warning. Ignore errors from
+an encoding operation cancelled by Pause/End.
 
 ```ts
 // media → main
