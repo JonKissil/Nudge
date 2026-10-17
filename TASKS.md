@@ -182,6 +182,23 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
   can include protected windows; AGENTS.md §9 now records this limitation and the prompt fallback for M3.
   After granting Screen Recording and restarting, verify capture exclusion, full-screen Chrome visibility,
   and physical click-through on the demo laptop before marking the remaining M1 checks complete.
+- 2026-10-16 — M2 (A): Added the external/dynamically imported `get-windows` poller, deterministic window
+  matching and drift rules, primary-display capture, grayscale diffing against the last sent frame,
+  1280px JPEG IPC capped at 1 fps, native PNG requests, a main-owned three-second window lock, pause/resume,
+  and the live perception HUD. Unknown windows remain `ask`; Live forwarding is reserved for M3.
+- 2026-10-16 — M2 acceptance on this Mac used Safari, as requested. Screen Recording and Accessibility
+  were granted for Electron; a full restart was needed before Safari URL reads worked reliably. The native
+  helper also uses Apple Events, so browser Automation access is required (documented in README and AGENTS).
+  Actual Safari URL/window locking and the on-task HUD verdict passed. A local scrolling page produced
+  3 frames during the initial 5.5s settling/idle period and 9 during 10.5s of scrolling; every JPEG was
+  1280px wide and successive sends were at least 1s apart. Native PNG IPC returned 2816×1762, pause sent
+  no frames, resume/end worked, and ending setup cancelled its pending lock. No captured pixels were logged
+  or saved. The idle acceptance wording accounts for the required 5s keyframe heartbeat (about 12/minute
+  once settled), rather than expecting zero frames.
+- 2026-10-16 — M2 checks passed: typecheck, 31 tests (matching, rules, frame diff, IPC including large
+  native-frame payload validation), lint, production build, and `git diff --check`. `npm run dev` launched
+  all three sandboxed renderers; DevTools checks confirmed the rendered control form/HUD, isolated preload
+  APIs, native active-window polling, and capture off before window locking.
 - 2026-10-16 — B / M3 progress: Added the LiveClient contract and scriptable FakeLiveClient, Gemini Live
   transport with tagged-turn queue, frame/audio input, tool responses, resumption and reconnect paths,
   prompt templates, tool declarations with zod validation, and media-window mic/playback. Installed
