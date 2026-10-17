@@ -5,7 +5,7 @@ import type { SessionSnapshot } from '../../shared/types'
 import { DEMO_TASK } from '../../shared/config'
 import type { LanguageCode } from '../../shared/languages'
 import { Settings } from './Settings'
-import mascot from '../assets/sprout-mascot.png'
+import mascot from '../assets/desktop-mascot.png'
 import styles from './App.module.css'
 
 function getApi(): ControlApi {

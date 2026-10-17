@@ -3,6 +3,7 @@ import type { SessionSnapshot, Theme } from '../../shared/types'
 import { LANGUAGE_CODES, LANGUAGE_NATIVE_NAMES, type LanguageCode } from '../../shared/languages'
 import { DevHud } from './DevHud'
 import { Permissions } from './Permissions'
+import mascot from '../assets/desktop-mascot.png'
 import styles from './App.module.css'
 
 interface SettingsProps {
@@ -36,7 +37,10 @@ export function Settings({ api, snapshot, busy, active, language, setLanguage, c
             aria-pressed={snapshot?.settings.theme === theme.id}
             disabled={!snapshot || busy}
             onClick={() => { void command(() => api.setSettings({ theme: theme.id }), 'Could not save the theme.') }}>
-            <span className={styles.themeSwatch} aria-hidden="true"><span /><span /><span /></span>
+            <span className={styles.themeSwatch} aria-hidden="true">
+              <span /><span /><span />
+              {theme.id === 'playful' && <img src={mascot} alt="" />}
+            </span>
             <span className={styles.themeChoiceText}><strong>{theme.name}</strong><small>{theme.detail}</small></span>
             <span className={styles.themeCheck} aria-hidden="true">✓</span>
           </button>)}
