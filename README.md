@@ -1,6 +1,5 @@
 # Nudge
 
-<<<<<<< HEAD
 A macOS study companion built with Electron, React, and TypeScript.
 
 Use Node 22.12+ and install dependencies with `npm install`. Copy `.env.example` to `.env`
@@ -24,12 +23,3 @@ Unknown screens, including YouTube, produce `ask`; model classification and voic
 
 Run `npm run typecheck`, `npm test`, `npm run lint`, and `npm run build` to verify changes.
 The milestone tracker and verification log are in [TASKS.md](TASKS.md).
-=======
-Run `npm run dev`, then use **Next overlay preview** in the control window to cycle through the pill,
-check-in card, arrow, next-step note, captions, and session states. **Hide overlay** clears the preview.
-The preview buttons simulate their actions. Notes fade and disappear after three minutes.
-
-If your environment sets `ELECTRON_RUN_AS_NODE`, launch with `env -u ELECTRON_RUN_AS_NODE npm run dev`.
-
-M1's demo-Mac capture-exclusion and full-screen Chrome checks are tracked in [TASKS.md](TASKS.md).
->>>>>>> origin/main

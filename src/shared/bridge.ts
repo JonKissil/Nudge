@@ -13,11 +13,8 @@ export interface ControlApi {
   lockTaskWindow: () => Promise<ActionResult>
   endSession: () => Promise<ActionResult>
   setSettings: (settings: Partial<Settings>) => Promise<ActionResult>
-<<<<<<< HEAD
   setCaptureRunning: (running: boolean) => Promise<ActionResult>
-=======
   previewOverlay: (action: 'next' | 'hide') => Promise<ActionResult>
->>>>>>> origin/main
 }
 export interface OverlayApi {
   kind: 'overlay'

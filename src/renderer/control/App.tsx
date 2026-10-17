@@ -16,7 +16,6 @@ export function App() {
   const [minutes, setMinutes] = useState(30)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-<<<<<<< HEAD
   const [now, setNow] = useState(Date.now())
   const active = snapshot?.state === 'FOCUSED' || snapshot?.state === 'PAUSED'
 
@@ -26,9 +25,7 @@ export function App() {
     const timer = setInterval(() => setNow(Date.now()), 100)
     return () => clearInterval(timer)
   }, [snapshot?.lockWindowAt])
-=======
   const [previewBusy, setPreviewBusy] = useState(false)
->>>>>>> origin/main
 
   useEffect(() => {
     let active = true
@@ -54,13 +51,13 @@ export function App() {
     finally { setBusy(false) }
   }
 
-<<<<<<< HEAD
   async function command(action: () => ReturnType<ControlApi['endSession']>): Promise<void> {
     setBusy(true); setError('')
     try { const result = await action(); if (!result.ok) setError(result.error) }
     catch { setError('The action could not be completed. Please try again.') }
     finally { setBusy(false) }
-=======
+  }
+
   async function previewOverlay(action: 'next' | 'hide'): Promise<void> {
     setPreviewBusy(true)
     setError('')
@@ -69,18 +66,13 @@ export function App() {
       if (!result.ok) setError(result.error)
     } catch { setError('Could not update the overlay preview. Please try again.') }
     finally { setPreviewBusy(false) }
->>>>>>> origin/main
   }
 
   return (
     <main className={styles.shell}>
       <header className={styles.header}>
         <span className={styles.brand}><span className={styles.mark} aria-hidden="true">↗</span> Nudge</span>
-<<<<<<< HEAD
         <span className={styles.badge}>Early build · M2</span>
-=======
-        <span className={styles.badge}>Early build · M1</span>
->>>>>>> origin/main
       </header>
       <p className={styles.eyebrow}>A LITTLE COMPANY FOR YOUR FOCUS</p>
       <h1>One thing at a time.</h1>

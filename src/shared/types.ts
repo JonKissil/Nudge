@@ -87,12 +87,9 @@ export const SessionSnapshotSchema = z.strictObject({
   state: SessionStateSchema, taskWindow: WindowInfoSchema.optional(), lastStatus: StatusSchema.optional(),
   conn: ConnStateSchema, stats: HudStatsSchema, settings: SettingsSchema,
   task: z.string(), minutes: z.number().int().min(1).max(240),
-<<<<<<< HEAD
   lockWindowAt: z.number().nonnegative().optional(),
   lockError: z.string().optional(),
-=======
   overlayPreview: OverlayPreviewSchema.optional(),
->>>>>>> origin/main
 })
 export type SessionSnapshot = z.infer<typeof SessionSnapshotSchema>
 export const ActionResultSchema = z.discriminatedUnion('ok', [
