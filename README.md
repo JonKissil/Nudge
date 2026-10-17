@@ -28,6 +28,13 @@ actions during a check-in. The microphone stays off except during a check-in or 
 Keyboard shortcuts: `⌘⇧Space` toggles push-to-talk, `⌘⇧P` pauses or resumes, and `⌘⇧D` toggles the live
 status display.
 
+On macOS, Nudge lives in the menu bar. Its **n** icon glows green while a session is running (including
+snooze) and becomes monochrome when paused or stopped. Click it to show the setup window, pause/resume,
+end the session, or **Quit Nudge**. Closing the setup window hides it while the session continues.
+Nudge stays out of the Dock; reopen its window with **Show Nudge** in the menu-bar menu.
+The menu-bar PNG assets include Retina versions; regenerate them with `npm run build:icons` after
+editing the geometry in `scripts/build-menu-bar-icons.mjs`.
+
 ## Mac permissions
 
 The control window shows Screen Recording, Microphone, and Accessibility status and links to System Settings.

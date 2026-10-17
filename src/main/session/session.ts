@@ -31,6 +31,8 @@ export interface SessionHooks {
   observeWindow(window: WindowInfo, verdict: RuleVerdict, matchesTask: boolean): Promise<ActionResult>
   togglePushToTalk(): ActionResult
   togglePause(): Promise<ActionResult>
+  endSession(): Promise<ActionResult>
+  onSnapshot(listener: (snapshot: SessionSnapshot) => void): () => void
   toggleHud(): ActionResult
   requestFullFrame(): Promise<IpcPayload<typeof IPC.frameFull>>
   dispose(): void
@@ -67,6 +69,7 @@ export function registerScaffoldIpc(
   let checkinMicOpen = false
   let pushToTalkOpen = false
   let endingSession: Promise<ActionResult> | undefined
+  const snapshotListeners = new Set<(snapshot: SessionSnapshot) => void>()
 
   const isSender = (sender: Electron.WebContents, kind: keyof AppWindows): boolean =>
     getWindows()?.[kind].webContents === sender
@@ -79,6 +82,7 @@ export function registerScaffoldIpc(
       resumptionHandleAgeMs: handleReceivedAt === undefined ? null : Math.max(0, Date.now() - handleReceivedAt),
     } }
     windows.control.webContents.send(IPC.sessionSnapshot, SessionSnapshotSchema.parse(snapshot))
+    for (const listener of snapshotListeners) listener(snapshot)
     const sessionOverlay = OverlayStateSchema.parse({
       pill: { state: snapshot.state, offline: snapshot.conn === 'degraded',
         snoozeUntil: study.state.snoozeUntil, micOpen: snapshot.micOpen },
@@ -317,7 +321,7 @@ export function registerScaffoldIpc(
     sessionNotes = []
     return study.dispatch({ type: 'START_SETUP', ...input })
   })
-  handle(IPC.sessionEnd, EmptySchema, async () => {
+  const endSession = async (): Promise<ActionResult> => {
     if (endingSession) return endingSession
     const ending = (async () => {
       perception.cancelLock()
@@ -329,13 +333,15 @@ export function registerScaffoldIpc(
     endingSession = ending
     try { return await ending }
     finally { if (endingSession === ending) endingSession = undefined }
-  })
-  handle(IPC.sessionPauseToggle, EmptySchema, () => {
+  }
+  const togglePause = (): Promise<ActionResult> => {
     if (['IDLE', 'SETUP', 'ENDED'].includes(study.state.phase)) {
-      return { ok: false, error: 'Start a study session before pausing.' }
+      return Promise.resolve({ ok: false, error: 'Start a study session before pausing.' })
     }
     return study.dispatch({ type: study.state.phase === 'PAUSED' ? 'RESUME' : 'PAUSE' })
-  })
+  }
+  handle(IPC.sessionEnd, EmptySchema, endSession)
+  handle(IPC.sessionPauseToggle, EmptySchema, togglePause)
   handle(IPC.sessionLockWindow, EmptySchema, () => perception.lockWindow())
   handle(IPC.settingsSet, IpcSchemas[IPC.settingsSet], async (settings) => {
     const next = { ...snapshot.settings, ...settings,
@@ -428,7 +434,12 @@ export function registerScaffoldIpc(
   }
 
   return {
-    activateTaskWindow, observeWindow,
+    activateTaskWindow, observeWindow, togglePause, endSession,
+    onSnapshot: (listener) => {
+      snapshotListeners.add(listener)
+      listener(snapshot)
+      return () => { snapshotListeners.delete(listener) }
+    },
     requestFullFrame: () => perception.requestFullFrame(),
     dispose: () => { recovery.dispose(); perception.dispose() },
     togglePushToTalk: () => {
@@ -440,12 +451,6 @@ export function registerScaffoldIpc(
       syncMic()
       publish()
       return { ok: true }
-    },
-    togglePause: () => {
-      if (['IDLE', 'SETUP', 'ENDED'].includes(study.state.phase)) {
-        return Promise.resolve({ ok: false, error: 'Start a study session to pause it.' })
-      }
-      return study.dispatch({ type: study.state.phase === 'PAUSED' ? 'RESUME' : 'PAUSE' })
     },
     toggleHud: () => {
       snapshot = { ...snapshot, settings: { ...snapshot.settings, showHud: !snapshot.settings.showHud } }

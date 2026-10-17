@@ -510,6 +510,12 @@ Define a zod schema for every payload. Channel names live in `src/shared/ipc.ts`
 
 ## 14. Hotkeys and demo mode
 
+- **macOS menu bar:** Nudge runs as a resident menu-bar app with no Dock icon. The native **n** icon
+  glows green while the real study session is running (including snooze/offline mode); it is monochrome
+  during setup, pause, idle, and ended states. Its menu shows/reopens the control window and offers
+  pause/resume, end, and quit. Closing the native control window hides it while the session continues;
+  **Quit Nudge** ends the session and exits. Keep the tray subscribed to main's real session snapshot,
+  never the overlay preview state. Icon assets include 1x/2x PNGs; `npm run build:icons` regenerates them.
 - `⌘⇧Space`: push-to-talk toggle. `⌘⇧P`: pause/resume. `⌘⇧D`: show/hide the dev HUD.
 - **Demo mode** (`DEMO_MODE=1` or the control-window toggle): uses `DEMO` parameters, pre-fills the task
   ("History essay: causes of the French Revolution", 30 min), and shows the HUD.
