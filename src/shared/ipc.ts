@@ -6,7 +6,8 @@ import {
 
 export const IPC = {
   frame: 'frame', frameFull: 'frame:full', micChunk: 'mic:chunk', micSet: 'mic:set',
-  audioPlay: 'audio:play', audioFlush: 'audio:flush', audioChime: 'audio:chime', frameRequestFull: 'frame:request-full',
+  audioPlay: 'audio:play', audioFlush: 'audio:flush', audioReset: 'audio:reset',
+  audioChime: 'audio:chime', frameRequestFull: 'frame:request-full',
   captureSet: 'capture:set', overlayState: 'overlay:state', overlayAction: 'overlay:action',
   overlayHover: 'overlay:hover', sessionStart: 'session:start', sessionLockWindow: 'session:lock-window',
   overlayPreview: 'overlay:preview', overlayReady: 'overlay:ready',
@@ -29,6 +30,7 @@ export const IpcSchemas = {
   [IPC.micSet]: z.strictObject({ open: z.boolean() }),
   [IPC.audioPlay]: z.strictObject({ pcm24Base64: base64 }),
   [IPC.audioFlush]: EmptySchema,
+  [IPC.audioReset]: EmptySchema,
   [IPC.audioChime]: EmptySchema,
   [IPC.frameRequestFull]: EmptySchema,
   [IPC.captureSet]: z.strictObject({ running: z.boolean() }),

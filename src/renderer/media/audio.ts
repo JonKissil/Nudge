@@ -74,20 +74,19 @@ export class MicCapture {
 
 export class AudioPlayer {
   private context?: AudioContext
-  private nextStart = 0
-  private readonly sources = new Set<AudioBufferSourceNode>()
+  private worklet?: AudioWorkletNode
   private generation = 0
   private queue: Promise<void> = Promise.resolve()
 
   play(pcm24Base64: string): Promise<void> {
     const generation = this.generation
-    const queued = this.queue.then(() => this.schedule(pcm24Base64, generation))
+    const queued = this.queue.then(() => this.enqueue(pcm24Base64, generation))
     this.queue = queued.catch(() => {})
     return queued
   }
 
   async chime(): Promise<void> {
-    const context = this.context ?? new AudioContext()
+    const context = this.context ?? new AudioContext({ sampleRate: 24_000 })
     this.context = context
     await context.resume()
     const start = context.currentTime
@@ -106,45 +105,46 @@ export class AudioPlayer {
     }
   }
 
-  private async schedule(pcm24Base64: string, generation: number): Promise<void> {
-    if (generation !== this.generation) return
-    const context = this.context ?? new AudioContext()
-    this.context = context
-    await context.resume()
+  private async enqueue(pcm24Base64: string, generation: number): Promise<void> {
     if (generation !== this.generation) return
     const raw = atob(pcm24Base64)
-    const count = Math.floor(raw.length / 2)
-    if (count === 0) return
-    const buffer = context.createBuffer(1, count, 24_000)
-    const samples = buffer.getChannelData(0)
-    for (let i = 0; i < count; i += 1) {
+    if (raw.length % 2 !== 0) throw new Error('Invalid 16-bit PCM audio chunk')
+    if (raw.length === 0) return
+    const pcm = new Int16Array(raw.length / 2)
+    for (let i = 0; i < pcm.length; i += 1) {
       const unsigned = raw.charCodeAt(i * 2) | (raw.charCodeAt(i * 2 + 1) << 8)
-      const signed = unsigned >= 32768 ? unsigned - 65536 : unsigned
-      samples[i] = signed / 32768
+      pcm[i] = unsigned >= 32768 ? unsigned - 65536 : unsigned
     }
-    const source = context.createBufferSource()
-    source.buffer = buffer
-    source.connect(context.destination)
-    source.onended = () => { this.sources.delete(source); source.disconnect() }
-    this.sources.add(source)
-    this.nextStart = Math.max(context.currentTime, this.nextStart)
-    source.start(this.nextStart)
-    this.nextStart += buffer.duration
+    const worklet = await this.ensureWorklet(generation)
+    if (!worklet || generation !== this.generation) return
+    worklet.port.postMessage({ type: 'audio', samples: pcm.buffer }, [pcm.buffer])
+  }
+
+  private async ensureWorklet(generation: number): Promise<AudioWorkletNode | undefined> {
+    if (this.worklet && this.context) {
+      await this.context.resume()
+      return generation === this.generation ? this.worklet : undefined
+    }
+    const context = this.context ?? new AudioContext({ sampleRate: 24_000 })
+    this.context = context
+    await context.audioWorklet.addModule(new URL('./speaker-processor.js', import.meta.url).href)
+    if (generation !== this.generation || this.context !== context) return undefined
+    const worklet = new AudioWorkletNode(context, 'nudge-speaker', { outputChannelCount: [1] })
+    worklet.connect(context.destination)
+    this.worklet = worklet
+    await context.resume()
+    return generation === this.generation ? worklet : undefined
   }
 
   flush(): void {
     this.generation += 1
-    for (const source of this.sources) {
-      source.onended = null
-      source.stop()
-      source.disconnect()
-    }
-    this.sources.clear()
-    this.nextStart = this.context?.currentTime ?? 0
+    this.worklet?.port.postMessage({ type: 'clear' })
   }
 
   close(): void {
     this.flush()
+    this.worklet?.disconnect()
+    this.worklet = undefined
     if (this.context) void this.context.close()
     this.context = undefined
   }

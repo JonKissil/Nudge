@@ -4,6 +4,7 @@ import type { LiveClient, LiveEvent, LiveSessionContext, LiveTurn } from '../gem
 export interface LiveSessionSinks {
   playAudio(pcm24Base64: string): void
   flushAudio(): void
+  resetAudio(): void
   caption(text: string): void
   userSpeech(text: string): void
   micSet(open: boolean): void
@@ -15,7 +16,10 @@ export interface LiveSessionSinks {
 /** Main-process boundary between the Live transport, media IPC, and session effects. */
 export class LiveSessionBridge {
   private active = false
+  private sessionId = 0
+  private startIntent = 0
   private micOpen = false
+  private stopping?: Promise<void>
   private readonly unsubscribe: () => void
 
   constructor(
@@ -27,12 +31,18 @@ export class LiveSessionBridge {
   }
 
   async start(context: LiveSessionContext): Promise<void> {
+    const intent = ++this.startIntent
+    if (this.stopping) await this.stopping
+    if (intent !== this.startIntent) throw new Error('Study session start was cancelled')
     if (this.active) throw new Error('A study session is already active')
+    const sessionId = ++this.sessionId
     this.active = true
     try { await this.client.connect(context) }
     catch (error) {
-      this.sinks.error(error instanceof Error ? error.message : 'Live connection failed')
-      this.sinks.connection('degraded')
+      if (this.active && this.sessionId === sessionId) {
+        this.sinks.error(error instanceof Error ? error.message : 'Live connection failed')
+        this.sinks.connection('degraded')
+      }
     }
   }
 
@@ -49,27 +59,44 @@ export class LiveSessionBridge {
     if (!open) this.client.endAudioStream()
   }
 
-  async stop(): Promise<void> {
-    if (!this.active) return
+  stop(): Promise<void> {
+    this.startIntent += 1
+    if (this.stopping) return this.stopping
+    if (!this.active) return Promise.resolve()
     this.setMicOpen(false)
     this.active = false
-    this.sinks.flushAudio()
+    this.sessionId += 1
+    this.sinks.resetAudio()
     this.sinks.caption('')
-    try { await this.client.disconnect() }
-    finally { this.sinks.connection('disconnected') }
+    const stopping = (async () => {
+      try { await this.client.disconnect() }
+      finally { this.sinks.connection('disconnected') }
+    })()
+    this.stopping = stopping
+    const clearStopping = (): void => { if (this.stopping === stopping) this.stopping = undefined }
+    void stopping.then(clearStopping, clearStopping)
+    return stopping
   }
 
   dispose(): void { this.unsubscribe() }
 
   private async onEvent(event: LiveEvent): Promise<void> {
     if (!this.active) return
+    const sessionId = this.sessionId
     switch (event.type) {
       case 'connection':
+        if (event.state === 'reconnecting' || event.state === 'degraded') {
+          this.sinks.flushAudio()
+          this.sinks.caption('')
+        }
         this.sinks.connection(event.state)
         break
       case 'resumption-handle': this.sinks.resumptionHandle(event.receivedAt); break
       case 'tool-call':
-        this.client.sendToolResponse(await runToolCall(event.call, this.handlers))
+        {
+          const response = await runToolCall(event.call, this.handlers)
+          if (this.active && this.sessionId === sessionId) this.client.sendToolResponse(response)
+        }
         break
       case 'audio': this.sinks.playAudio(event.pcm24Base64); break
       case 'transcription': this.sinks.caption(event.text); break

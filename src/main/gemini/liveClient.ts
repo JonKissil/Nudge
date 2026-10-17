@@ -22,8 +22,9 @@ export class GeminiLiveClient implements LiveClient {
   private latestFrame?: string
   private handle?: string
   private active = false
+  private lifecycleId = 0
   private connectionId = 0
-  private recovery?: Promise<void>
+  private recovery?: { lifecycleId: number; promise: Promise<void> }
   private awaitingTurn = false
   private modelSpeaking = false
   private checkinActive = false
@@ -44,6 +45,7 @@ export class GeminiLiveClient implements LiveClient {
 
   async connect(context: LiveSessionContext): Promise<void> {
     if (this.active) throw new Error('A Live session is already active')
+    const lifecycleId = ++this.lifecycleId
     this.context = context
     this.active = true
     this.handle = undefined
@@ -55,14 +57,15 @@ export class GeminiLiveClient implements LiveClient {
     }
     this.ai = new GoogleGenAI({ apiKey: this.apiKey, httpOptions: { apiVersion: 'v1beta' } })
     try {
-      await this.open(undefined)
+      await this.open(undefined, lifecycleId)
     } catch {
-      await this.recover(false)
+      await this.recover(false, lifecycleId)
     }
   }
 
   async disconnect(): Promise<void> {
     this.active = false
+    this.lifecycleId += 1
     this.connectionId += 1
     this.session?.close()
     this.session = undefined
@@ -75,6 +78,7 @@ export class GeminiLiveClient implements LiveClient {
     this.awaitingTurn = false
     this.modelSpeaking = false
     this.checkinActive = false
+    this.recovery = undefined
     this.emit({ type: 'connection', state: 'disconnected' })
   }
 
@@ -119,10 +123,14 @@ export class GeminiLiveClient implements LiveClient {
     for (const listener of this.listeners) listener(event)
   }
 
-  private async open(handle: string | undefined): Promise<void> {
+  private isCurrent(lifecycleId: number): boolean {
+    return this.active && lifecycleId === this.lifecycleId
+  }
+
+  private async open(handle: string | undefined, lifecycleId: number): Promise<void> {
     const context = this.context
     const ai = this.ai
-    if (!context || !ai || !this.active) return
+    if (!context || !ai || !this.isCurrent(lifecycleId)) return
     const id = ++this.connectionId
     const config: LiveConnectConfig = {
       ...buildLiveConfig(context, handle),
@@ -144,7 +152,8 @@ export class GeminiLiveClient implements LiveClient {
         },
       },
     })
-    if (!this.active || id !== this.connectionId) { session.close(); return }
+    if (!this.isCurrent(lifecycleId) || id !== this.connectionId) { session.close(); return }
+    this.session?.close()
     this.session = session
     this.awaitingTurn = false
     this.modelSpeaking = false
@@ -156,7 +165,8 @@ export class GeminiLiveClient implements LiveClient {
   }
 
   private async beginRecovery(): Promise<void> {
-    if (this.recovery || !this.active) return
+    const lifecycleId = this.lifecycleId
+    if (this.recovery?.lifecycleId === lifecycleId || !this.isCurrent(lifecycleId)) return
     const old = this.session
     this.session = undefined
     this.connectionId += 1
@@ -164,32 +174,34 @@ export class GeminiLiveClient implements LiveClient {
     this.awaitingTurn = false
     this.modelSpeaking = false
     this.emit({ type: 'connection', state: 'reconnecting' })
-    this.recovery = this.recover(Boolean(this.handle)).finally(() => { this.recovery = undefined })
-    await this.recovery
+    const promise = this.recover(Boolean(this.handle), lifecycleId)
+    this.recovery = { lifecycleId, promise }
+    try { await promise }
+    finally { if (this.recovery?.promise === promise) this.recovery = undefined }
   }
 
-  private async recover(tryResume: boolean): Promise<void> {
+  private async recover(tryResume: boolean, lifecycleId: number): Promise<void> {
     for (const delay of BACKOFF_MS) {
-      if (!this.active) return
+      if (!this.isCurrent(lifecycleId)) return
       await new Promise((resolve) => setTimeout(resolve, delay))
-      if (!this.active) return
+      if (!this.isCurrent(lifecycleId)) return
       try {
-        await this.open(tryResume ? this.handle : undefined)
-        if (this.session) return
+        await this.open(tryResume ? this.handle : undefined, lifecycleId)
+        if (this.isCurrent(lifecycleId) && this.session) return
       } catch {
         // Retry with the same resumption handle after a transient connection failure.
       }
     }
-    if (tryResume && this.active) {
+    if (tryResume && this.isCurrent(lifecycleId)) {
       try {
-        await this.open(undefined)
-        if (this.session && this.context) {
+        await this.open(undefined, lifecycleId)
+        if (this.isCurrent(lifecycleId) && this.session && this.context) {
           this.sendTurn(contextRestoreTurn(this.context, this.context.state ?? 'FOCUSED'))
           return
         }
       } catch { /* degraded mode below */ }
     }
-    if (this.active) this.emit({ type: 'connection', state: 'degraded' })
+    if (this.isCurrent(lifecycleId)) this.emit({ type: 'connection', state: 'degraded' })
   }
 
   private onMessage(message: LiveServerMessage): void {

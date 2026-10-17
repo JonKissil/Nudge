@@ -4,6 +4,7 @@ import type { LiveSessionContext } from '../src/main/gemini/types'
 
 const sdk = vi.hoisted(() => ({
   callbacks: undefined as undefined | { onmessage: (message: unknown) => void },
+  callbacksList: [] as { onmessage: (message: unknown) => void }[],
   config: undefined as unknown,
   configs: [] as unknown[],
   turns: [] as unknown[],
@@ -20,6 +21,7 @@ vi.mock('@google/genai', () => ({
   GoogleGenAI: class {
     live = { connect: async ({ callbacks, config }: { callbacks: typeof sdk.callbacks; config: unknown }) => {
       sdk.callbacks = callbacks
+      if (callbacks) sdk.callbacksList.push(callbacks)
       sdk.config = config
       sdk.configs.push(config)
       return {
@@ -43,6 +45,7 @@ const context: LiveSessionContext = {
 
 beforeEach(() => {
   sdk.callbacks = undefined
+  sdk.callbacksList.length = 0
   sdk.config = undefined
   sdk.configs.length = 0
   sdk.turns.length = 0
@@ -59,6 +62,7 @@ describe('GeminiLiveClient transport', () => {
       responseModalities: ['AUDIO'], mediaResolution: 'MEDIA_RESOLUTION_LOW',
       contextWindowCompression: { slidingWindow: {} }, sessionResumption: {},
       inputAudioTranscription: {}, outputAudioTranscription: {},
+      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } } },
     })
     expect(sdk.config).not.toHaveProperty('proactivity')
     client.sendFrame('anBlZw==')
@@ -139,5 +143,29 @@ describe('GeminiLiveClient transport', () => {
     })
     expect(events).toContainEqual({ type: 'connection', state: 'connected', resumed: true })
     await client.disconnect()
+  })
+
+  it('does not revive an old reconnect after a new study session starts', async () => {
+    vi.useFakeTimers()
+    try {
+      const client = new GeminiLiveClient('test-key')
+      const audio: string[] = []
+      client.onEvent((event) => { if (event.type === 'audio') audio.push(event.pcm24Base64) })
+      await client.connect(context)
+      const oldCallbacks = sdk.callbacksList[0]!
+      oldCallbacks.onmessage({ goAway: {} })
+      await client.disconnect()
+      await client.connect({ ...context, task: 'New session' })
+      await vi.advanceTimersByTimeAsync(500)
+      expect(sdk.configs).toHaveLength(2)
+      oldCallbacks.onmessage({ serverContent: { modelTurn: { parts: [
+        { inlineData: { data: 'b2xk', mimeType: 'audio/pcm' } },
+      ] } } })
+      sdk.callbacksList[1]!.onmessage({ serverContent: { modelTurn: { parts: [
+        { inlineData: { data: 'bmV3', mimeType: 'audio/pcm' } },
+      ] } } })
+      expect(audio).toEqual(['bmV3'])
+      await client.disconnect()
+    } finally { vi.useRealTimers() }
   })
 })
