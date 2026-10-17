@@ -21,6 +21,16 @@
 .card button:hover:enabled { background: #263f32; }
 .saved { color: #426445; font-size: 12px; margin: 0; line-height: 1.5; }
 .error { color: #9b4232; font-size: 12px; margin: 0; }
+.sessionActions { display: flex; gap: 8px; }
+.sessionActions button { flex: 1; }
+.hudToggle { border: 1px solid #ccd7c6; border-radius: 8px; background: #e8eee2; color: #344e40; padding: 8px 12px; cursor: pointer; margin-bottom: 16px; font-size: 12px; }
+.hud { border: 1px solid #cbd6c3; padding: 16px; border-radius: 12px; font-size: 11px; margin-bottom: 20px; background: #eef2e8; }
+.hud h2 { font-size: 13px; margin: 0 0 12px; }
+.hud dl { display: grid; grid-template-columns: 120px 1fr; gap: 8px; margin: 0; }
+.hud dt { color: #697763; }
+.hud dd { margin: 0; overflow-wrap: anywhere; }
+.hud details { margin-top: 12px; }
+.hud ul { padding-left: 16px; line-height: 1.7; overflow-wrap: anywhere; }
 .note { margin: 22px 2px; font-size: 12px; line-height: 1.6; color: #727b6d; }
 .note strong { font-weight: 600; color: #4b5b4c; }
 .note p { margin: 4px 0; }
