@@ -25,6 +25,7 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 
 ## M1 — Overlay (A, H2–H5)
 
+<<<<<<< HEAD
 - [x] Transparent, click-through, always-on-top overlay over the full primary display; full-screen visibility configured
 - [x] Hover-to-interact toggling for buttons
 - [x] `setContentProtection(true)` enabled
@@ -32,6 +33,13 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 - [x] Components: `Pill`, `NudgeCard`, `Arrow`, `StickyNote`, `Captions`, driven only by `overlay:state`
 - [x] Normalized (0–1) coordinates; reduced-motion support
 - [ ] Manual demo-Mac check: overlay visible over full-screen Chrome; physical clicks pass through outside buttons
+=======
+- [ ] Transparent, click-through, always-on-top overlay over the primary display, visible over full-screen Chrome
+- [ ] Hover-to-interact toggling for buttons
+- [ ] `setContentProtection(true)`; **verify the overlay is absent from captured frames** (record the result in the log)
+- [ ] Components: `Pill`, `NudgeCard`, `Arrow`, `StickyNote`, `Captions`, driven only by `overlay:state`
+- [ ] Normalized (0–1) coordinates; reduced-motion support
+>>>>>>> f5bb2fc (Scaffold)
 - **Accept:** a dev button in the control window cycles through every overlay component; clicks pass through
   everywhere except on buttons.
 
@@ -163,6 +171,7 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 - 2026-10-16 — M0 naming: Renamed the app to Nudge in UI copy, Electron/window titles, package metadata,
   preload APIs (`window.nudge` / `NudgeApi`), and project instructions. Typecheck, all 7 tests, lint,
   production build, and desktop launch passed; no old-name references remain in project sources or docs.
+<<<<<<< HEAD
 - 2026-10-16 — M1 implementation: Added all five overlay components, button-only hover interaction, normalized
   anchoring, live snooze countdown, three-minute note fade/removal, reduced-motion styling, and a control-window
   preview cycle with hide/reset. Preview actions stay in main and simulate interactions without starting a study
@@ -205,3 +214,5 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
   System Settings shows Nudge/Electron has not yet requested Screen Recording or Microphone access, and no
   app has requested Automation access. Track A's capture and Chrome-focus paths must trigger those prompts
   before the permissions can be granted and the demo-Mac acceptance boxes can be checked.
+=======
+>>>>>>> f5bb2fc (Scaffold)

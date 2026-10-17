@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { app, ipcMain } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { z } from 'zod'
@@ -42,6 +43,25 @@ export function registerScaffoldIpc(
   let observed: { window: WindowInfo; verdict: RuleVerdict; matchesTask: boolean } | undefined
   let handleReceivedAt: number | undefined
   const frameTimes: number[] = []
+=======
+import { ipcMain } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { z } from 'zod'
+import { DEMO_TASK } from '../../shared/config'
+import { EmptySchema, IPC, IpcSchemas, type IpcChannel } from '../../shared/ipc'
+import { ActionResultSchema, OverlayStateSchema, SessionSnapshotSchema } from '../../shared/types'
+import type { ActionResult, SessionSnapshot } from '../../shared/types'
+import type { AppWindows } from '../windows'
+
+// M0 only stores setup data. The reducer, timers, and Live connection arrive in M3/M4.
+export function registerScaffoldIpc(getWindows: () => AppWindows | undefined): void {
+  const demoMode = process.env.DEMO_MODE === '1'
+  let snapshot: SessionSnapshot = SessionSnapshotSchema.parse({
+    state: 'IDLE', conn: 'disconnected', task: demoMode ? DEMO_TASK : '', minutes: 30,
+    settings: { demoMode, showHud: demoMode },
+    stats: { framesPerMinute: 0, resumptionHandleAgeMs: null, transitions: [], logs: [] },
+  })
+>>>>>>> f5bb2fc (Scaffold)
 
   const isSender = (sender: Electron.WebContents, kind: keyof AppWindows): boolean =>
     getWindows()?.[kind].webContents === sender
@@ -49,6 +69,7 @@ export function registerScaffoldIpc(
   const publish = (): void => {
     const windows = getWindows()
     if (!windows) return
+<<<<<<< HEAD
     snapshot = { ...snapshot, stats: { ...snapshot.stats,
       resumptionHandleAgeMs: handleReceivedAt === undefined ? null : Math.max(0, Date.now() - handleReceivedAt),
     } }
@@ -136,13 +157,27 @@ export function registerScaffoldIpc(
 
   const handle = <T>(channel: IpcChannel, schema: z.ZodType<T>, action: (payload: T) => ActionResult | Promise<ActionResult>): void => {
     ipcMain.handle(channel, async (event: IpcMainInvokeEvent, payload: unknown) => {
+=======
+    windows.control.webContents.send(IPC.sessionSnapshot, SessionSnapshotSchema.parse(snapshot))
+    windows.overlay.webContents.send(IPC.overlayState, OverlayStateSchema.parse({
+      pill: { state: snapshot.state, offline: false }, notes: [],
+    }))
+  }
+
+  const handle = <T>(channel: IpcChannel, schema: z.ZodType<T>, action: (payload: T) => ActionResult): void => {
+    ipcMain.handle(channel, (event: IpcMainInvokeEvent, payload: unknown) => {
+>>>>>>> f5bb2fc (Scaffold)
       if (!isSender(event.sender, 'control') || event.senderFrame !== event.sender.mainFrame) {
         return { ok: false, error: 'This command is only available in the control window.' }
       }
       const parsed = schema.safeParse(payload)
       if (!parsed.success) return { ok: false, error: 'Invalid command payload.' }
       try {
+<<<<<<< HEAD
         const result = ActionResultSchema.parse(await action(parsed.data))
+=======
+        const result = ActionResultSchema.parse(action(parsed.data))
+>>>>>>> f5bb2fc (Scaffold)
         publish()
         return result
       } catch {
@@ -161,9 +196,19 @@ export function registerScaffoldIpc(
     if (snapshot.state !== 'IDLE' && snapshot.state !== 'ENDED' && snapshot.state !== 'SETUP') {
       return { ok: false, error: 'End the current session before starting another.' }
     }
+<<<<<<< HEAD
     return study.dispatch({ type: 'START_SETUP', ...input })
   })
   handle(IPC.sessionEnd, EmptySchema, () => study.dispatch({ type: 'END' }))
+=======
+    snapshot = { ...snapshot, ...input, state: 'SETUP' }
+    return { ok: true }
+  })
+  handle(IPC.sessionEnd, EmptySchema, () => {
+    snapshot = { ...snapshot, state: 'ENDED' }
+    return { ok: true }
+  })
+>>>>>>> f5bb2fc (Scaffold)
   handle(IPC.sessionLockWindow, EmptySchema, () => ({
     ok: false, error: 'Task window locking is scheduled for M2.',
   }))
@@ -171,6 +216,7 @@ export function registerScaffoldIpc(
     snapshot = { ...snapshot, settings: { ...snapshot.settings, ...settings } }
     return { ok: true }
   })
+<<<<<<< HEAD
   handle(IPC.overlayPreview, IpcSchemas[IPC.overlayPreview], ({ action }) => {
     if (app.isPackaged) return { ok: false, error: 'Overlay previews are available in development builds.' }
     const index = OVERLAY_PREVIEWS.indexOf(snapshot.overlayPreview ?? 'hidden')
@@ -186,12 +232,20 @@ export function registerScaffoldIpc(
   ]) {
     ipcMain.on(channel, (event, payload: unknown) => {
       const kind = channel.startsWith('overlay:') ? 'overlay' : 'media'
+=======
+
+  // Validate all incoming event channels, even while their consumers are scaffold placeholders.
+  for (const channel of [IPC.frame, IPC.frameFull, IPC.micChunk, IPC.overlayAction, IPC.overlayHover]) {
+    ipcMain.on(channel, (event, payload: unknown) => {
+      const kind = channel === IPC.overlayAction || channel === IPC.overlayHover ? 'overlay' : 'media'
+>>>>>>> f5bb2fc (Scaffold)
       if (!isSender(event.sender, kind) || event.senderFrame !== event.sender.mainFrame) return
       const parsed = IpcSchemas[channel].safeParse(payload)
       if (!parsed.success) { console.error(`Invalid IPC payload: ${channel}`); return }
       if (channel === IPC.overlayHover) {
         const { interactive } = IpcSchemas[IPC.overlayHover].parse(parsed.data)
         getWindows()?.overlay.setIgnoreMouseEvents(!interactive, { forward: true })
+<<<<<<< HEAD
       } else if (channel === IPC.overlayReady) {
         publish()
       } else if (channel === IPC.frame) {
@@ -246,4 +300,9 @@ export function registerScaffoldIpc(
       return study.dispatch({ type: 'WINDOW_OBSERVED', ...observed })
     },
   }
+=======
+      }
+    })
+  }
+>>>>>>> f5bb2fc (Scaffold)
 }

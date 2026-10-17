@@ -13,9 +13,13 @@ export function createWindows(): AppWindows {
         ? { width: 640, height: 760, minWidth: 480, minHeight: 600, backgroundColor: '#f5f4ef' }
         : kind === 'overlay'
           ? { ...screen.getPrimaryDisplay().bounds, transparent: true, frame: false,
+<<<<<<< HEAD
               focusable: false, hasShadow: false, skipTaskbar: true,
               // Prevent macOS from clamping the overlay to the menu bar / Dock work area.
               type: 'panel', enableLargerThanScreen: true, resizable: false, fullscreenable: false }
+=======
+              focusable: false, hasShadow: false, skipTaskbar: true }
+>>>>>>> f5bb2fc (Scaffold)
           : { width: 320, height: 240, skipTaskbar: true }),
       webPreferences: {
         preload: join(__dirname, `../preload/${kind}.js`),
@@ -32,10 +36,13 @@ export function createWindows(): AppWindows {
     })
     window.webContents.on('render-process-gone', (_event, details) => {
       console.error(`${kind} renderer exited: ${details.reason}`)
+<<<<<<< HEAD
       if (kind === 'overlay') window.setIgnoreMouseEvents(true, { forward: true })
     })
     if (kind === 'overlay') window.webContents.on('did-start-loading', () => {
       window.setIgnoreMouseEvents(true, { forward: true })
+=======
+>>>>>>> f5bb2fc (Scaffold)
     })
     return window
   }
@@ -46,6 +53,7 @@ export function createWindows(): AppWindows {
   windows.overlay.setIgnoreMouseEvents(true, { forward: true })
   windows.overlay.setContentProtection(true)
 
+<<<<<<< HEAD
   const updateBounds = (): void => {
     if (!windows.overlay.isDestroyed()) windows.overlay.setBounds(screen.getPrimaryDisplay().bounds)
   }
@@ -58,6 +66,8 @@ export function createWindows(): AppWindows {
     screen.removeListener('display-removed', updateBounds)
   })
 
+=======
+>>>>>>> f5bb2fc (Scaffold)
   return windows
 }
 

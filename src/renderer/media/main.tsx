@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { StrictMode, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AudioPlayer, MicCapture } from './audio'
@@ -21,6 +22,15 @@ export function Media() {
     }
   }, [])
   return <p>Media ready. Microphone is off until check-in.</p>
+=======
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+
+export function Media() {
+  if (window.nudge.kind !== 'media') throw new Error('The media preload is unavailable')
+  // Capture and audio are intentionally inactive until M2/M3.
+  return <p>Media ready. Capture and microphone are off.</p>
+>>>>>>> f5bb2fc (Scaffold)
 }
 
 createRoot(document.getElementById('root')!).render(<StrictMode><Media /></StrictMode>)

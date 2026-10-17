@@ -15,7 +15,10 @@ export function App() {
   const [minutes, setMinutes] = useState(30)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+<<<<<<< HEAD
   const [previewBusy, setPreviewBusy] = useState(false)
+=======
+>>>>>>> f5bb2fc (Scaffold)
 
   useEffect(() => {
     let active = true
@@ -41,6 +44,7 @@ export function App() {
     finally { setBusy(false) }
   }
 
+<<<<<<< HEAD
   async function previewOverlay(action: 'next' | 'hide'): Promise<void> {
     setPreviewBusy(true)
     setError('')
@@ -51,11 +55,17 @@ export function App() {
     finally { setPreviewBusy(false) }
   }
 
+=======
+>>>>>>> f5bb2fc (Scaffold)
   return (
     <main className={styles.shell}>
       <header className={styles.header}>
         <span className={styles.brand}><span className={styles.mark} aria-hidden="true">↗</span> Nudge</span>
+<<<<<<< HEAD
         <span className={styles.badge}>Early build · M1</span>
+=======
+        <span className={styles.badge}>Early build · M0</span>
+>>>>>>> f5bb2fc (Scaffold)
       </header>
       <p className={styles.eyebrow}>A LITTLE COMPANY FOR YOUR FOCUS</p>
       <h1>One thing at a time.</h1>
@@ -74,6 +84,7 @@ export function App() {
         {snapshot?.state === 'SETUP' && <p role="status" className={styles.saved}>Task saved. Window locking is coming next.</p>}
         {error && <p role="alert" className={styles.error}>{error}</p>}
       </form>
+<<<<<<< HEAD
       <section className={styles.preview} aria-label="Overlay preview">
         <div className={styles.previewHeader}><strong>Overlay preview</strong><span>Development</span></div>
         <p>Cycle through the pill, check-in, arrow, next step, captions, and session states. Buttons simulate their actions.</p>
@@ -85,6 +96,8 @@ export function App() {
         <p role="status" className={styles.previewStatus}>Showing: {snapshot?.overlayPreview ?? 'hidden'}
           {snapshot?.stats.logs.at(-1)?.startsWith('Overlay preview:') && ` · ${snapshot.stats.logs.at(-1)}`}</p>
       </section>
+=======
+>>>>>>> f5bb2fc (Scaffold)
       <aside className={styles.note}>
         <strong>Your space, your pace.</strong>
         <p>This first build sets up your task. Screen capture, voice, and study sessions arrive in the next milestones.</p>

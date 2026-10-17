@@ -13,7 +13,10 @@ export interface ControlApi {
   lockTaskWindow: () => Promise<ActionResult>
   endSession: () => Promise<ActionResult>
   setSettings: (settings: Partial<Settings>) => Promise<ActionResult>
+<<<<<<< HEAD
   previewOverlay: (action: 'next' | 'hide') => Promise<ActionResult>
+=======
+>>>>>>> f5bb2fc (Scaffold)
 }
 export interface OverlayApi {
   kind: 'overlay'

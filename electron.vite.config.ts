@@ -28,7 +28,10 @@ export default defineConfig({
       transformIndexHtml: (html) => html.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'"),
     }],
     build: {
+<<<<<<< HEAD
       assetsInlineLimit: 0,
+=======
+>>>>>>> f5bb2fc (Scaffold)
       rollupOptions: {
         input: {
           control: resolve('src/renderer/control/index.html'),
