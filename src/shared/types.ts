@@ -45,7 +45,7 @@ export type CaptureStatus = z.infer<typeof CaptureStatusSchema>
 export const PermissionStatusSchema = z.strictObject({
   screen: z.enum(['not-determined', 'granted', 'denied', 'restricted', 'unknown']),
   microphone: z.enum(['not-determined', 'granted', 'denied', 'restricted', 'unknown']),
-  accessibility: z.enum(['granted', 'denied']),
+  accessibility: z.enum(['granted', 'not-trusted', 'denied', 'unknown']),
 })
 export type PermissionStatus = z.infer<typeof PermissionStatusSchema>
 export const MicTestResultSchema = z.strictObject({

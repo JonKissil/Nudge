@@ -125,6 +125,8 @@ the main implementation gaps. M7 has several completed components; M8 has a draf
 - [x] Degraded-mode implementation: rules-only judgment, offline pill, chime, and card (rule tests; media/overlay wiring)
 - [ ] Manual wifi-off acceptance, including usable controls once M5 actions are connected
 - [x] Permission checklist, System Settings links, native mic request, and local three-second mic probe (UI/recorded mic verification)
+- [x] Checklist refresh on focus/visibility and every 3s; distinguish launch-specific trust from denial
+  and show working capture/browser access; direct macOS launcher and Safari setup copy verified
 - [ ] `scripts/demo-reset.sh`
 - [x] Hotkeys registered: ⌘⇧Space, ⌘⇧P, ⌘⇧D; push-to-talk manually verified
 - [ ] Polish: pill states, note styling, caption timing, a calm voice choice
@@ -334,3 +336,13 @@ the main implementation gaps. M7 has several completed components; M8 has a draf
   full demo passes, backup video, and rehearsals remain open. Historical permission-denial entries above
   describe earlier launch contexts; they are not the latest observed Screen Recording status.
   This documentation update passed typecheck, all 65 tests, the dev-launch smoke check, and diff checks.
+- 2026-10-17 — Permission/browser fix: the checklist previously read status only once and labeled a false
+  Accessibility trust check as denied. It now refreshes on focus/visibility and every three seconds while
+  visible, discards stale replies, and reports `not-trusted` as “Not active for this launch.” Actual running
+  capture/browser URL reads appear as working capabilities, without changing or fabricating OS grants.
+  Added `npm run start:mac` to build and launch Electron.app directly through Launch Services; the separate
+  test instance reported Screen Recording, Microphone, and Accessibility granted. Runtime tests with
+  temporary permission responses verified focus and periodic refresh, plus Safari/document-app setup
+  instructions and browser-neutral Automation copy. The original running instance was left open.
+  Added four permission-presentation tests; all 69 tests, typecheck/build, lint, and diff checks passed.
+  The separate `npm run dev` instance also passed the three-window/HUD launch smoke check and was closed.
