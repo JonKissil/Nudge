@@ -13,6 +13,7 @@ const sdk = vi.hoisted(() => ({
   closes: 0,
   connectGate: undefined as Promise<void> | undefined,
   failures: 0,
+  connectFailure: undefined as Error | undefined,
 }))
 
 vi.mock('@google/genai', () => ({
@@ -26,6 +27,7 @@ vi.mock('@google/genai', () => ({
       if (callbacks) sdk.callbacksList.push(callbacks)
       sdk.config = config
       sdk.configs.push(config)
+      if (sdk.connectFailure) throw sdk.connectFailure
       if (sdk.failures > 0) { sdk.failures--; throw new Error('Offline') }
       await sdk.connectGate
       return {
@@ -58,6 +60,7 @@ beforeEach(() => {
   sdk.closes = 0
   sdk.connectGate = undefined
   sdk.failures = 0
+  sdk.connectFailure = undefined
 })
 
 describe('GeminiLiveClient transport', () => {
@@ -140,6 +143,21 @@ describe('GeminiLiveClient transport', () => {
     oldCallbacks.onmessage({ serverContent: { outputTranscription: { text: 'Stale warmup speech' } } })
     expect(events).toEqual([])
     await client.disconnect()
+  })
+
+  it('reports the reason before entering offline mode when startup retries fail', async () => {
+    vi.useFakeTimers()
+    sdk.connectFailure = new Error('getaddrinfo ENOTFOUND generativelanguage.googleapis.com')
+    const client = new GeminiLiveClient('test-key')
+    const events: Array<{ type: string; message?: string; state?: string }> = []
+    client.onEvent((event) => events.push(event))
+    try {
+      const connecting = client.connect(context)
+      await vi.runAllTimersAsync()
+      await connecting
+      expect(events).toContainEqual({ type: 'connection', state: 'degraded' })
+      expect(events.some((event) => event.type === 'error' && event.message?.includes('ENOTFOUND'))).toBe(true)
+    } finally { await client.disconnect(); vi.useRealTimers() }
   })
 
   it('uses the verified Live config and maps media and tool scheduling', async () => {

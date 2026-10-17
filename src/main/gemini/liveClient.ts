@@ -37,6 +37,7 @@ export class GeminiLiveClient implements LiveClient {
   private warmLanguage?: LanguageCode
   private connecting?: Promise<void>
   private connectionState: 'connected' | 'reconnecting' | 'degraded' | 'disconnected' = 'disconnected'
+  private lastConnectionError?: string
 
   constructor(private readonly apiKey = process.env.GEMINI_API_KEY) {}
 
@@ -98,6 +99,7 @@ export class GeminiLiveClient implements LiveClient {
     this.context = context
     this.active = true
     this.handle = undefined
+    this.lastConnectionError = undefined
     this.emit({ type: 'connection', state: 'reconnecting' })
     if (!this.apiKey) {
       this.emit({ type: 'error', message: 'GEMINI_API_KEY is missing.' })
@@ -107,7 +109,8 @@ export class GeminiLiveClient implements LiveClient {
     this.ai = new GoogleGenAI({ apiKey: this.apiKey, httpOptions: { apiVersion: 'v1beta' } })
     try {
       await this.open(undefined, lifecycleId)
-    } catch {
+    } catch (error) {
+      this.reportConnectionError(error)
       await this.recover(false, lifecycleId)
     }
   }
@@ -191,11 +194,20 @@ export class GeminiLiveClient implements LiveClient {
     return this.active && lifecycleId === this.lifecycleId
   }
 
+  private reportConnectionError(error: unknown): void {
+    const message = error instanceof Error ? error.message
+      : error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
+        ? error.message : String(error)
+    this.lastConnectionError = message || 'Live connection failed.'
+    this.emit({ type: 'error', message: this.lastConnectionError })
+  }
+
   private async open(handle: string | undefined, lifecycleId: number): Promise<void> {
     const context = this.context
     const ai = this.ai
     if (!ai || !this.isCurrent(lifecycleId)) return
     const id = ++this.connectionId
+    this.lastConnectionError = undefined
     const config: LiveConnectConfig = {
       ...buildLiveConfig(context, handle, context?.language ?? this.warmLanguage ?? 'en'),
       responseModalities: [Modality.AUDIO],
@@ -209,10 +221,15 @@ export class GeminiLiveClient implements LiveClient {
       callbacks: {
         onmessage: (message) => { if (id === this.connectionId) this.onMessage(message) },
         onerror: (error) => {
-          if (id === this.connectionId) this.emit({ type: 'error', message: error.message || 'Live connection error.' })
+          if (id === this.connectionId) this.reportConnectionError(error)
         },
-        onclose: () => {
-          if (id === this.connectionId && this.active) void this.beginRecovery()
+        onclose: (event) => {
+          if (id === this.connectionId && this.active) {
+            if (!this.lastConnectionError) this.reportConnectionError(
+              `Live socket closed (${event?.code ?? 'unknown'}${event?.reason ? `: ${event.reason}` : ''}).`,
+            )
+            void this.beginRecovery()
+          }
         },
       },
     })
@@ -256,7 +273,8 @@ export class GeminiLiveClient implements LiveClient {
       try {
         await this.open(tryResume ? this.handle : undefined, lifecycleId)
         if (this.isCurrent(lifecycleId) && this.session) return
-      } catch {
+      } catch (error) {
+        this.reportConnectionError(error)
         // Retry with the same resumption handle after a transient connection failure.
       }
     }
@@ -267,9 +285,12 @@ export class GeminiLiveClient implements LiveClient {
           this.sendTurn(contextRestoreTurn(this.context, this.context.state ?? 'FOCUSED'))
           return
         }
-      } catch { /* degraded mode below */ }
+      } catch (error) { this.reportConnectionError(error) }
     }
-    if (this.isCurrent(lifecycleId)) this.emit({ type: 'connection', state: 'degraded' })
+    if (this.isCurrent(lifecycleId)) {
+      if (!this.lastConnectionError) this.reportConnectionError('Live connection failed without a server reason.')
+      this.emit({ type: 'connection', state: 'degraded' })
+    }
   }
 
   private onMessage(message: LiveServerMessage): void {

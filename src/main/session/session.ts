@@ -214,7 +214,8 @@ export function registerScaffoldIpc(
     micSet: (open) => getWindows()?.media.webContents.send(IPC.micSet, { open }),
     connection: (conn) => {
       if (conn === 'disconnected') handleReceivedAt = undefined
-      snapshot = { ...snapshot, conn }
+      snapshot = { ...snapshot, conn,
+        connectionIssue: conn === 'connected' || conn === 'disconnected' ? undefined : snapshot.connectionIssue }
       syncMic()
       log(`Live connection: ${conn}`)
       if (conn === 'degraded' && observed) {
@@ -223,7 +224,14 @@ export function registerScaffoldIpc(
       }
     },
     resumptionHandle: (receivedAt) => { handleReceivedAt = receivedAt; publish() },
-    error: () => log('Live connection error'),
+    error: (message) => {
+      const key = process.env.GEMINI_API_KEY
+      const safe = (key ? message.replaceAll(key, '[redacted key]') : message)
+        .replace(/([?&](?:key|api_key)=)[^&\s]+/giu, '$1[redacted key]')
+        .replace(/\s+/gu, ' ').slice(0, 240)
+      snapshot = { ...snapshot, connectionIssue: safe }
+      log(`Live connection error: ${safe}`)
+    },
   })
   const activateTaskWindow = async (window: WindowInfo): Promise<ActionResult> => {
     if (snapshot.state !== 'SETUP') return { ok: false, error: 'Save a task before locking its window.' }

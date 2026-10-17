@@ -107,6 +107,7 @@ export const SessionSnapshotSchema = z.strictObject({
   micOpen: z.boolean().optional(),
   lockWindowAt: z.number().nonnegative().optional(),
   lockError: z.string().optional(),
+  connectionIssue: z.string().optional(),
   overlayPreview: OverlayPreviewSchema.optional(),
 })
 export type SessionSnapshot = z.infer<typeof SessionSnapshotSchema>

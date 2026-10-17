@@ -568,3 +568,12 @@ completed components; M8 has a draft deck and script.
   failure/retry and a late encoding failure after Pause also passed. Only generated pixels were used;
   no screen pixels or image payloads were logged or saved. Typecheck, all 150 tests, lint, production
   build, three-renderer dev launch, and diff checks passed; the test instance was closed.
+- 2026-10-17 — Offline-mode follow-up: the student's Terminal-launched development app entered degraded
+  mode after Start. Its `.env` key was present, no inherited key overrode it, and the exact Live client
+  connected with the startup turn in an independent network check. The previous failure reason was lost
+  because connection errors were collapsed to a generic log entry. Nudge now retains the latest sanitized
+  connection reason in the session snapshot, shows it on the home screen when offline, and records setup,
+  socket-close, and retry failures in the connection log. A fresh development launch connected, streamed
+  frames, and received a resumption handle during a controlled TextEdit test; the test session was ended.
+  The cause of the earlier process's failure remains unknown. Typecheck, all 139 tests, lint, and the
+  three-renderer development launch passed.

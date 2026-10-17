@@ -117,6 +117,9 @@ export function App() {
         <button type="submit" disabled={!snapshot || busy || !task.trim() || active}>
           {active ? (snapshot?.state === 'PAUSED' ? 'Session paused' : 'Session running') : 'Save task'}
         </button>
+        {snapshot?.conn === 'degraded' && <p role="alert" className={styles.error}>
+          Offline mode: {snapshot.connectionIssue ?? 'Gemini could not connect.'}
+        </p>}
         {snapshot?.state === 'SETUP' && <div className={styles.lockStep}>
           <p>After starting, switch to your task window within 3 seconds.</p>
           <button type="button" disabled={busy || Boolean(snapshot.lockWindowAt)}
