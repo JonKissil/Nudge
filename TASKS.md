@@ -132,6 +132,9 @@ completed components; M8 has a draft deck and script.
   and show working capture/browser access; direct macOS launcher and Safari setup copy verified
 - [ ] `scripts/demo-reset.sh`
 - [x] Hotkeys registered: ⌘⇧Space, ⌘⇧P, ⌘⇧D; push-to-talk manually verified
+- [x] Requested macOS menu-bar integration: session indicator, pause/resume/end controls, hide-on-close,
+  reopen, and quit; icon glows during running/snoozed sessions and dims when paused or stopped
+  (Retina assets, real Safari lock/capture, native menu actions, and quit verified)
 - [ ] Polish: pill states, note styling, caption timing, a calm voice choice
 - [ ] Record a backup demo video of the full path
 - **Accept:** AGENTS.md §19 steps 1–9 all pass on the demo laptop.
@@ -178,6 +181,17 @@ completed components; M8 has a draft deck and script.
 ## Log
 
 <!-- Date/time — lane — what happened / decision / blocker -->
+
+- 2026-10-17 — Requested menu-bar integration: added a native macOS Nudge icon with monochrome
+  inactive/paused and green active states, including Retina representations. The real session snapshot
+  drives its status; overlay previews cannot light it, and snoozed/offline sessions remain enabled.
+  Pause/resume/end reuse the control window's session actions. Closing the native control window hides
+  it without stopping capture; Show Nudge restores it, and Quit ends the session and exits. The app
+  stays out of the Dock. Verified the built app through Launch Services with a temporary Safari page:
+  task lock → lit icon/capture, close → continued capture, native Pause → dim/capture off, Resume →
+  relit, End → dim/disconnected, and Quit → process exit. The Live transport was stubbed for this check;
+  no model/network behavior was changed. `npm run typecheck`, all 110 tests, lint, production build,
+  and the `npm run dev` launch passed. Icon sources regenerate with `npm run build:icons`.
 
 - 2026-10-16 — M0 (both lanes): Implemented the Electron/React/strict-TS scaffold, three sandboxed renderers,
   per-window typed preload APIs, validated IPC contracts, DEFAULTS/DEMO, and setup documentation. The control
