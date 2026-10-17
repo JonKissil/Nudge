@@ -25,4 +25,13 @@
 .note strong { font-weight: 600; color: #4b5b4c; }
 .note p { margin: 4px 0; }
 .footer { border-top: 1px solid #dfe3d9; padding-top: 17px; display: flex; justify-content: space-between; gap: 12px; color: #788171; font-size: 10px; }
+.preview { border: 1px dashed #c8d1c1; border-radius: 12px; padding: 16px; margin-top: 20px; color: #64725f; font-size: 12px; line-height: 1.6; }
+.previewHeader { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.previewHeader strong { color: #344e40; font-weight: 600; }
+.previewHeader span { font-size: 10px; }
+.preview p { margin: 8px 0 12px; }
+.previewActions { display: flex; gap: 8px; flex-wrap: wrap; }
+.previewActions button { border: 1px solid #cdd6c5; background: #e8eee1; color: #344e40; border-radius: 7px; padding: 8px 10px; cursor: pointer; font-size: 11px; }
+.previewActions button:disabled { opacity: .5; cursor: default; }
+.preview .previewStatus { margin: 10px 0 0; font-size: 10px; }
 @media (max-width: 500px) { .shell { padding: 24px; } .shell h1 { font-size: 32px; } }
