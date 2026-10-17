@@ -4,13 +4,22 @@ import { join } from 'node:path'
 export type WindowKind = 'control' | 'overlay' | 'media'
 export type AppWindows = Record<WindowKind, BrowserWindow>
 
+export function centerControlWindow(window: BrowserWindow): void {
+  const area = screen.getPrimaryDisplay().workArea
+  const bounds = window.getBounds()
+  // macOS's native center() places small windows above the geometric midpoint.
+  window.setPosition(Math.round(area.x + (area.width - bounds.width) / 2),
+    Math.round(area.y + (area.height - bounds.height) / 2))
+}
+
 export function createWindows(): AppWindows {
   const make = (kind: WindowKind): BrowserWindow => {
     const window = new BrowserWindow({
       title: `Nudge — ${kind}`,
       show: false,
       ...(kind === 'control'
-        ? { width: 640, height: 760, minWidth: 480, minHeight: 600, backgroundColor: '#f5f4ef' }
+        ? { width: 440, height: 440, resizable: false, maximizable: false,
+            fullscreenable: false, backgroundColor: '#f5f4ef' }
         : kind === 'overlay'
           ? { ...screen.getPrimaryDisplay().bounds, transparent: true, frame: false,
               focusable: false, hasShadow: false, skipTaskbar: true,
@@ -69,6 +78,7 @@ export async function loadWindows(windows: AppWindows): Promise<void> {
       await window.loadFile(join(__dirname, `../renderer/${kind}/index.html`))
     }
   }))
+  centerControlWindow(windows.control)
   windows.control.show()
   windows.overlay.showInactive()
 }

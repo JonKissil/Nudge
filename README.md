@@ -19,7 +19,7 @@ If your terminal sets `ELECTRON_RUN_AS_NODE=1`, run `env -u ELECTRON_RUN_AS_NODE
 `DEMO_MODE=1 npm run dev` starts with demo timing and the sample essay task. The control window can also
 toggle demo timing while the app runs.
 
-In the control window, save a task, click **Lock task window**, and switch to its document in Safari,
+In the control window, save a task, click **Start session**, and switch to its document in Safari,
 Chrome, another supported browser, or a document app before the three-second countdown ends.
 Nudge then starts its Live connection and screen capture.
 **Pause session** and **End session** are available in the control window; the overlay offers one-click
@@ -37,7 +37,9 @@ editing the geometry in `scripts/build-menu-bar-icons.mjs`.
 
 ## Mac permissions
 
-The control window shows Screen Recording, Microphone, and Accessibility status and links to System Settings.
+Open **Settings** in the control window for Screen Recording, Microphone, and Accessibility status
+and links to System Settings. Demo controls, live status, overlay previews, keyboard shortcuts,
+and pause/end controls also live here; the home page shows just the task, duration, and save/start controls.
 Grant Screen Recording for capture and window details, Microphone for voice, Accessibility for browser
 details, and Automation for the browser you use (including Safari or Chrome) when macOS asks while
 reading URLs or returning to the task. Fully restart the launching terminal/editor and Electron after

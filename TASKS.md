@@ -146,6 +146,12 @@ completed components; M8 has a draft deck and script.
 
 ## M7 — Demo hardening (both, H18–H24)
 
+- [x] Requested home-page cleanup: task field, duration, and save/start controls only; Settings holds
+  session actions, demo/HUD toggles, permissions, overlay previews, shortcuts, and diagnostics
+  (native UI navigation, draft retention, countdown, and narrow layouts verified in an isolated dev copy)
+- [x] Requested compact window: fixed 440 × 440 square, centered on launch/reopen; smaller fields and
+  spacing, both setup buttons visible without scrolling, and scrollable Settings with sticky navigation
+  (native geometry, reactivation, setup/countdown, navigation, and layout checks passed in an isolated dev copy)
 - [x] Demo-mode implementation: DEMO params, pre-filled task, HUD, environment flag, and control toggle (configuration tests/UI wiring)
 - [x] Degraded-mode implementation: rules-only judgment, offline pill, chime, and card (rule tests; media/overlay wiring)
 - [ ] Manual wifi-off acceptance with the connected M5 controls

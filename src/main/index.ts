@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { registerScaffoldIpc } from './session/session'
 import { registerPermissionsIpc } from './permissions'
-import { createWindows, loadWindows } from './windows'
+import { centerControlWindow, createWindows, loadWindows } from './windows'
 import { createMenuBar } from './menuBar'
 import type { AppWindows } from './windows'
 
@@ -36,6 +36,7 @@ async function bootstrap(): Promise<void> {
     const showControl = (): void => {
       if (quitting || windows.control.isDestroyed()) return
       if (windows.control.isMinimized()) windows.control.restore()
+      centerControlWindow(windows.control)
       windows.control.show()
       windows.control.focus()
       app.focus({ steal: true })
@@ -70,6 +71,7 @@ if (!primaryInstance) {
   app.on('second-instance', () => {
     if (!controlWindow || controlWindow.isDestroyed()) return
     if (controlWindow.isMinimized()) controlWindow.restore()
+    centerControlWindow(controlWindow)
     controlWindow.show()
     controlWindow.focus()
   })

@@ -542,7 +542,12 @@ Define a zod schema for every payload. Channel names live in `src/shared/ipc.ts`
 - `⌘⇧Space`: push-to-talk toggle. `⌘⇧P`: pause/resume. `⌘⇧D`: show/hide the dev HUD.
 - **Demo mode** (`DEMO_MODE=1` or the control-window toggle): uses `DEMO` parameters, pre-fills the task
   ("History essay: causes of the French Revolution", 30 min), and shows the HUD.
-- **Dev HUD** (in the control window): state, the current window's rule verdict, the last `report_status`, frames per
+- **Control navigation:** the default home page contains only the task field, duration, and save/start
+  controls, with a Settings button. Settings contains session actions, demo/HUD toggles, permissions,
+  overlay previews, shortcuts, and diagnostics. Keep marketing copy off the home page. The control
+  window is a fixed 440 × 440 square, centered in the primary display's work area on launch/reopen.
+  Keep the setup form compact; Settings scrolls inside the same window with its navigation visible.
+- **Dev HUD** (on the control window's Settings page): state, the current window's rule verdict, the last `report_status`, frames per
   minute, connection state and resumption-handle age, and the last 10 state transitions.
   It's useful for debugging and good to show judges.
 - `scripts/demo-reset.sh` clears the allow-list and stored state.
@@ -557,7 +562,7 @@ The native window helper uses Apple Events for browser URL reads as well as the 
 - `npm run start:mac` builds and opens Electron.app through Launch Services for a direct launch. Use it
   after fully quitting an editor-launched copy when access was granted to Electron. It uses built pages;
   `npm run dev` remains the hot-reload workflow and may need permissions for its launching editor/terminal.
-- On start, the control window shows a permission checklist (`systemPreferences.getMediaAccessStatus('screen'|'microphone')`)
+- The control window's Settings page shows a permission checklist (`systemPreferences.getMediaAccessStatus('screen'|'microphone')`)
   with buttons that open the right System Settings pane.
 - Refresh this checklist on focus, visibility changes, and periodically while visible. Accessibility's
   `isTrustedAccessibilityClient(false)` result describes the current process; false is `not-trusted`,
