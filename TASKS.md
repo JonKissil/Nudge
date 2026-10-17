@@ -17,8 +17,9 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 **Status — 2026-10-17:** M2 and integration checkpoint 1 are verified. M1's Safari interaction check is
 confirmed; capture exclusion is still open. M3/M4 implementation is integrated and tested, with the real
 15-minute reconnect and full drift-demo checks still open. M5 focus/guide/allow and closed-tab recovery
-are implemented and Safari-tested; document OCR remains the main implementation gap. M7 has several
-completed components; M8 has a draft deck and script.
+are implemented and Safari-tested. M6's document OCR and anchored-note implementation is connected;
+Safari re-entry acceptance passed with real Gemini; remaining demo acceptance is recorded below.
+M7 has several completed components; M8 has a draft deck and script.
 
 ---
 
@@ -110,13 +111,17 @@ completed components; M8 has a draft deck and script.
 ## M6 — Re-entry note (A: OCR; B: prompt, H14–H18)
 
 - [x] `native/ocr-helper/main.swift` + `scripts/build-ocr.sh` (built for M5 tab guidance; Vision, normalized top-left boxes, JSON out; stdin avoids frame files)
-- [ ] `ocr/lines.ts` + tests (bounds filter, grouping, L-numbering, 60-line cap)
-- [ ] `REENTRY`: full frame → OCR → `[USER_RETURNED]` + `[DOC_LINES]` → `pin_next_step` → `StickyNote` at the line; fallbacks per AGENTS.md §11 and §16
-- [ ] tesseract.js fallback when the helper binary is missing
+- [x] `ocr/lines.ts` + tests (bounds/overlay filtering, grouping, L-numbering, 100-character trim, last 60 visible lines)
+- [x] `REENTRY`: full frame → OCR → `[USER_RETURNED]` + `[DOC_LINES]` → `pin_next_step` → `StickyNote` at the line; fallbacks per AGENTS.md §11 and §16 (actual Safari capture/OCR/note coordinates; real Gemini pin verified)
+- [x] tesseract.js fallback when the helper binary is missing (actual missing-helper Safari run; bundled English data, no runtime download)
 - [x] `pin_next_step` → three-minute dismissible overlay note with margin fallback (FakeLiveClient and note/preview tests)
-- The Swift helper and full-frame capture are ready. Document-region OCR, line grouping, and actual
-  document-line lookup remain open, along with the full OCR-to-anchored-note path above.
-- **Accept:** after returning, a note appears beside the last written line within ~3s, phrased as a question/prompt (not text to copy).
+- [x] Real Gemini re-entry acceptance: generated question, accepted pin tool on the last line, model audio/captions received, note in 2.34s after arrival
+- Safari tests verified exact line placement in 2.15s with Vision and 2.43s with Tesseract, unknown-line
+  margin fallback, and dismissal. Pure/FakeLiveClient tests cover stale OCR and pin cancellation.
+- **Accept — passed with Safari/local essay:** after returning, a note appears beside the last written
+  line within ~3s, phrased as a question/prompt. Real run used the overlay return button after the nudge
+  finished; the full spoken Google Docs demo remains integration checkpoint 2. Active speech/Live queueing
+  can add delay when returning immediately during a nudge.
 
 ## ⇄ Integration checkpoint 2 (H18): full demo path
 
@@ -397,3 +402,35 @@ completed components; M8 has a draft deck and script.
   waits for end cleanup. Added restart/reconnect, cancelled-start, and fresh-player tests. Typecheck,
   77 tests, lint, production build, diff checks, and a separate `npm run dev` launch passed. The separate
   app was closed after the launch check. Audible acceptance remains open.
+- 2026-10-17 — M6 implemented: full-resolution frames are cropped to the current task window's content
+  region and recognized by Vision. Pure line grouping filters bounds and Nudge UI, joins row fragments,
+  trims text to 100 characters, and retains the last 60 visible lines. `[USER_RETURNED][DOC_LINES]` and
+  the cached `line_id` boxes share the same numbering. `pin_next_step` places the question beside that
+  line, clamped inside the visible task window; missing/unknown lines and OCR errors use the margin.
+  Notes remain dismissible and expire after three minutes; the existing ten-second no-pin fallback remains.
+  Superseded OCR is aborted, old session results cannot enter a newer re-entry, and a cancelled pin cannot
+  restore a paused/ended session. Independent frame capture, native reads, and local OCR overlap to
+  reduce latency; document text is sent only after the foreground/window checks pass. Full-frame requests
+  are serialized so guided-return capture cannot collide with document capture. No frames, audio, OCR
+  text, or line maps are logged or saved.
+- 2026-10-17 — M6 dependency justification: added the planned `tesseract.js` 7 fallback and
+  `@tesseract.js-data/eng` 1 language data so missing-helper OCR works offline without runtime downloads.
+  Tesseract stays external for its Node worker/WASM assets; workers are reused, bounded by a timeout,
+  and terminated on cancellation/quit. The dev HUD reports fallback use. The Swift helper still accepts
+  image bytes on stdin; normalized edge coordinates are clamped against floating-point overshoot.
+- 2026-10-17 — M6 Safari verification: local essay capture with scripted model replies produced five
+  numbered lines and a note beside the last line in 2.15s after arrival; native OCR boxes and rendered
+  note coordinates agreed within three display points on this Retina Mac. Temporarily removing the
+  helper exercised actual local Tesseract, which anchored beside the same line in 2.43s. Unknown `L999`
+  placed the model's question in the margin, and dismissal worked. Restored the helper and original
+  saved state and closed temporary Safari windows. Pure/controller/FakeLiveClient regressions cover
+  geometry, ordering/grouping/caps, failure paths, moved windows, cancellation, and stale async results.
+- 2026-10-17 — M6 real Gemini acceptance passed on the local Safari essay. After the nudge finished,
+  the overlay return action led to actual OCR lines, a real `pin_next_step` on the last line, and the
+  question “What specific demands did the people make?” in 2.34s after native arrival. The optimized
+  capture/OCR/queue portion took 1.65s and Gemini's pin call arrived 0.49s later; five model audio chunks
+  and 27 output-transcription characters were received. Test microphone audio was withheld. An earlier
+  immediate return during the nudge took 4.96s; waiting for existing speech can still add latency, as
+  required by the no-interruption turn protocol. This verifies M6, not the full spoken Google Docs demo
+  or checkpoint 2. Swift build, typecheck, all 104 tests, lint, production build, diff checks, and the
+  final three-renderer dev-launch smoke check passed; test instances were closed.

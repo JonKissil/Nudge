@@ -71,9 +71,17 @@ npm run lint
 npm run build
 ```
 
-`npm run build:ocr` needs Apple's Command Line Tools (`swiftc`). It builds the Vision helper used to
-find the task tab during guided return. Captured pixels pass to the helper in memory. If OCR is unavailable
-or the tab is hidden, Nudge shows its title with a **Take me there** button instead.
+`npm run build:ocr` needs Apple's Command Line Tools (`swiftc`). It builds the Vision helper used for
+guided return and document re-entry. If the helper is missing, Nudge uses Tesseract.js with bundled
+English language data; the fallback does not need a network download. Captured pixels stay in memory.
+If a task tab cannot be located, Nudge shows its title with a **Take me there** button instead.
+
+After you return, Nudge waits briefly for the screen to settle, recognizes the visible task document,
+and gives Gemini up to 60 numbered lines. Gemini pins one small question or prompt beside a selected
+line. The note stays inside the task window, can be dismissed, and fades after three minutes. If OCR
+fails or the selected line is unknown, the note uses the window margin; if Gemini does not pin a step
+within ten seconds, Nudge supplies a simple “Pick up where you left off” reminder. OCR text and line
+boxes are held only for the current return and are never saved to disk.
 
 During a check-in, **Take me back** selects the locked tab in Safari, Chrome, Arc, Brave, or Edge;
 other document apps are activated. Arrival is confirmed by window polling. **This is for my task** saves

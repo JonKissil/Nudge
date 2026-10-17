@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    build: { rollupOptions: { external: ['get-windows'] } },
+    build: { rollupOptions: { external: ['get-windows', 'tesseract.js', '@tesseract.js-data/eng'] } },
   },
   preload: {
     // Each sandboxed preload must be self-contained, including zod.

@@ -459,6 +459,13 @@ export const DEMO = { ...DEFAULTS, tickMs: 4_000, graceMs: 15_000, checkinSilenc
 - `pin_next_step.line_id` → that line's box → note placed at the box's right edge (clamped to the window's bounds).
   `"none"` or an unknown ID → the window's right margin at 40% height.
 - Fallback: if the helper binary is missing, use `tesseract.js` (slower). Log a warning in the dev HUD.
+- M6 implementation: both engines receive a crop in memory and return display-normalized boxes.
+  Exclude browser/title bars and Nudge's pill/captions; discard previous notes before capture. Keep
+  at most the last 60 visible lines, trimmed to 100 characters, to retain the likely re-entry location.
+  Cache their IDs/boxes together only for that return. Reject stale OCR after Pause, End, or another
+  return, and use the margin if the window moved or a line ID is unknown. Clamp the whole note to the
+  visible task window. `@tesseract.js-data/eng` supplies local English data for the planned Tesseract
+  fallback, avoiding runtime downloads; keep Tesseract external so its worker/WASM assets resolve.
 
 ## 12. Audio (media window)
 

@@ -25,6 +25,7 @@ function fixture(focusSucceeds = true, guideSucceeds = true) {
   const guide = vi.fn(async () => guideSucceeds)
   const note = vi.fn(async () => {})
   const allow = vi.fn(async (window: WindowInfo) => { void window })
+  const ocr = vi.fn(async () => ['L1: The Estates-General met in 1789'])
   const ports: EffectPorts = {
     startLive: (context) => bridge.start(context), stopLive: () => bridge.stop(),
     sendTurn: (turn) => bridge.sendTurn(turn),
@@ -32,7 +33,7 @@ function fixture(focusSucceeds = true, guideSucceeds = true) {
     setCheckinActive: (active) => bridge.setCheckinActive(active),
     setCaptureRunning: capture, showNudge: nudge,
     focusTask: focus, guideTask: guide,
-    ocrLines: async () => ['L1: The Estates-General met in 1789'],
+    ocrLines: ocr,
     pinNote: note, allowWindow: allow,
   }
   const engine = new StudyEngine(config, ports, undefined, () => now)
@@ -41,7 +42,7 @@ function fixture(focusSucceeds = true, guideSucceeds = true) {
     caption: () => {}, userSpeech: () => {}, micSet: () => {},
     connection: () => {}, resumptionHandle: () => {}, error: () => {},
   })
-  return { client, engine, bridge, capture, nudge, focus, guide, note, allow, setNow: (value: number) => { now = value } }
+  return { client, engine, bridge, capture, nudge, focus, guide, note, allow, ocr, setNow: (value: number) => { now = value } }
 }
 
 async function reachCheckin(f: ReturnType<typeof fixture>): Promise<void> {
@@ -58,6 +59,43 @@ async function reachCheckin(f: ReturnType<typeof fixture>): Promise<void> {
 }
 
 describe('study engine and Live tool loop', () => {
+  it('ignores OCR from an ended session even if another session is already in re-entry', async () => {
+    const f = fixture()
+    await reachCheckin(f)
+    await f.engine.dispatch({ type: 'ARRIVED' }, 16_000)
+    let finish!: (lines: string[]) => void
+    f.ocr.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    const pending = f.engine.dispatch({ type: 'TICK' }, 16_800)
+    await vi.waitFor(() => expect(f.ocr).toHaveBeenCalledOnce())
+    await f.engine.dispatch({ type: 'END' }, 17_000)
+    await reachCheckin(f)
+    await f.engine.dispatch({ type: 'ARRIVED' }, 16_000)
+    const before = f.client.turns.filter((turn) => turn.tag === 'USER_RETURNED').length
+    finish(['L1: Stale document from previous session'])
+    await pending
+    expect(f.client.turns.filter((turn) => turn.tag === 'USER_RETURNED')).toHaveLength(before)
+    expect(f.engine.state.reentrySent).toBe(false)
+    await f.engine.dispatch({ type: 'TICK' }, 16_800)
+    expect(f.client.turns.at(-1)?.text).toContain('The Estates-General met in 1789')
+    await f.engine.dispatch({ type: 'END' })
+    f.bridge.dispose()
+  })
+
+  it('does not roll a paused session back into re-entry when a pending pin fails', async () => {
+    const f = fixture()
+    await reachCheckin(f)
+    await f.engine.dispatch({ type: 'ARRIVED' }, 16_000)
+    let fail!: (error: Error) => void
+    f.note.mockImplementationOnce(() => new Promise<void>((_, reject) => { fail = reject }))
+    const pin = f.engine.dispatch({ type: 'PIN_STEP', text: 'What could you explore next?', lineId: 'L1' }, 17_000)
+    await vi.waitFor(() => expect(f.note).toHaveBeenCalledOnce())
+    await f.engine.dispatch({ type: 'PAUSE' }, 17_001)
+    fail(new Error('Return cancelled'))
+    expect((await pin).ok).toBe(false)
+    expect(f.engine.state.phase).toBe('PAUSED')
+    await f.engine.dispatch({ type: 'END' })
+    f.bridge.dispose()
+  })
   it('allows the latest check-in window, ignoring our own controls', async () => {
     const f = fixture()
     await reachCheckin(f)

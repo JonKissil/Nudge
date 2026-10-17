@@ -23,6 +23,10 @@ import { PerceptionController } from './perception'
 import { ReturnActions, type Guidance } from './returnActions'
 import { AppStore } from '../store'
 import { TaskRecovery } from './taskRecovery'
+import { DocumentReentry } from './documentReentry'
+import { OcrService } from '../ocr/ocr'
+import { overlayExclusions } from '../ocr/geometry'
+import { TAB_STRIP_HEIGHT } from '../ocr/tabStrip'
 
 export interface SessionHooks {
   // M2 calls this after its three-second active-window lock resolves.
@@ -148,17 +152,21 @@ export function registerScaffoldIpc(
     focusTask: (window) => actions?.focusTask(window) ?? returns.focus(window),
     guideTask: (window) => actions?.guideTask(window) ?? returns.guide(window),
     ocrLines: async () => {
-      try { return await actions?.ocrLines() ?? [] }
+      try { return await (actions ? actions.ocrLines() : document.readLines()) }
       catch { log('OCR unavailable; using a margin note.'); return [] }
     },
     pinNote: async (text, lineId) => {
+      const generation = document.generation
       let lineAnchor: NormalizedBox | undefined
       if (lineId !== 'none') {
-        try { lineAnchor = await actions?.locateLine?.(lineId) }
+        try { lineAnchor = actions ? await actions.locateLine?.(lineId) : await document.locateLine(lineId) }
         catch { log('Line location unavailable; using the document margin.') }
       }
+      if (generation !== document.generation || !['FOCUSED', 'REENTRY'].includes(study.state.phase)) {
+        throw new Error('This return has ended; the note was cancelled.')
+      }
       sessionNotes = [createSessionNote(
-        `session-note-${++noteSerial}`, text, study.state.taskWindow,
+        `session-note-${++noteSerial}`, text, document.taskWindow ?? study.state.taskWindow,
         screen.getPrimaryDisplay().bounds, Date.now(), lineAnchor,
       )]
       publish()
@@ -174,6 +182,11 @@ export function registerScaffoldIpc(
     },
   }
   const study = new StudyEngine(demoMode ? DEMO : DEFAULTS, ports, (state, previous) => {
+    if (state.phase === 'REENTRY' && previous.phase !== 'REENTRY') {
+      document.reset()
+      sessionNotes = []
+    } else if (['PAUSED', 'ENDED', 'SETUP'].includes(state.phase)) document.reset()
+    else if (previous.phase === 'REENTRY' && state.phase !== 'REENTRY') document.finish()
     if (previous.phase === 'RETURNING' && state.phase !== 'RETURNING') returns.cancel()
     if (state.phase === 'PAUSED' || state.phase === 'ENDED') pushToTalkOpen = false
     if (state.taskWindow) live.updateContext({
@@ -238,16 +251,25 @@ export function registerScaffoldIpc(
     publish, log,
   })
   const store = new AppStore(join(app.getPath('userData'), 'state.json'), (message) => log(message))
+  const ocr = new OcrService(log)
   const returns = new ReturnActions({
     requestFullFrame: () => perception.requestFullFrame(),
     showGuidance: (view) => { guidance = view; publish() }, log,
+    readTabStrip: (png, signal) => ocr.readRegion(png, { x: 0, y: 0, w: 1, h: TAB_STRIP_HEIGHT }, signal),
+  })
+  const document = new DocumentReentry({
+    getPhase: () => study.state.phase, getTask: () => study.state.taskWindow,
+    getDisplay: () => screen.getPrimaryDisplay().bounds,
+    getExclusions: () => overlayExclusions(screen.getPrimaryDisplay().bounds, caption),
+    readWindow: () => perception.readCurrentWindow(), requestFrame: () => perception.requestFullFrame(),
+    recognize: (png, region, signal) => ocr.readRegion(png, region, signal), log,
   })
   const recovery = new TaskRecovery({
     getPhase: () => study.state.phase, readUrl: (window) => perception.readTaskUrl(window),
     updateUrl: (url) => study.dispatch({ type: 'TASK_URL_UPDATED', url }),
     save: (task) => store.saveTaskTab(task), log,
   })
-  app.once('before-quit', () => { recovery.dispose(); perception.dispose() })
+  app.once('before-quit', () => { document.reset(); returns.dispose(); ocr.dispose(); recovery.dispose(); perception.dispose() })
 
   let tickMs = demoMode ? DEMO.tickMs : DEFAULTS.tickMs
   let lastCheckAt = Date.now()
@@ -441,7 +463,7 @@ export function registerScaffoldIpc(
       return () => { snapshotListeners.delete(listener) }
     },
     requestFullFrame: () => perception.requestFullFrame(),
-    dispose: () => { recovery.dispose(); perception.dispose() },
+    dispose: () => { document.reset(); returns.dispose(); ocr.dispose(); recovery.dispose(); perception.dispose() },
     togglePushToTalk: () => {
       if (['IDLE', 'SETUP', 'PAUSED', 'ENDED'].includes(study.state.phase)) {
         return { ok: false, error: 'Start or resume a study session to use push-to-talk.' }
