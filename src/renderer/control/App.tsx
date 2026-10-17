@@ -1,0 +1,76 @@
+import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
+import type { ControlApi } from '../../shared/bridge'
+import type { SessionSnapshot } from '../../shared/types'
+import styles from './App.module.css'
+
+function getApi(): ControlApi {
+  if (window.nudge.kind !== 'control') throw new Error('The control preload is unavailable')
+  return window.nudge
+}
+
+export function App() {
+  const [snapshot, setSnapshot] = useState<SessionSnapshot>()
+  const [task, setTask] = useState('')
+  const [minutes, setMinutes] = useState(30)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    const api = getApi()
+    const unsubscribe = api.onSnapshot((next) => { if (active) setSnapshot(next) })
+    void api.getSnapshot().then((next) => {
+      if (!active) return
+      setSnapshot(next)
+      setTask(next.task)
+      setMinutes(next.minutes)
+    }).catch(() => { if (active) setError('Could not load the app. Please restart Nudge.') })
+    return () => { active = false; unsubscribe() }
+  }, [])
+
+  async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      const result = await getApi().startSession({ task, minutes })
+      if (!result.ok) setError(result.error)
+    } catch { setError('Could not save your task. Please try again.') }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <main className={styles.shell}>
+      <header className={styles.header}>
+        <span className={styles.brand}><span className={styles.mark} aria-hidden="true">↗</span> Nudge</span>
+        <span className={styles.badge}>Early build · M0</span>
+      </header>
+      <p className={styles.eyebrow}>A LITTLE COMPANY FOR YOUR FOCUS</p>
+      <h1>One thing at a time.</h1>
+      <p className={styles.intro}>Make a little space for what you want to work on. We’ll start with one task.</p>
+      <form className={styles.card} onSubmit={(event) => { void submit(event) }}>
+        <label htmlFor="task">What are you working on?</label>
+        <textarea id="task" value={task} onChange={(event) => setTask(event.target.value)}
+          placeholder="An essay, a problem set, a little reading…" required maxLength={1000} rows={3} />
+        <label htmlFor="minutes">How long would you like?</label>
+        <div className={styles.duration}>
+          <input id="minutes" type="number" min={1} max={240} required value={minutes}
+            onChange={(event) => setMinutes(event.target.valueAsNumber)} />
+          <span>minutes</span>
+        </div>
+        <button type="submit" disabled={!snapshot || busy || !task.trim()}>Save task <span aria-hidden="true">↗</span></button>
+        {snapshot?.state === 'SETUP' && <p role="status" className={styles.saved}>Task saved. Window locking is coming next.</p>}
+        {error && <p role="alert" className={styles.error}>{error}</p>}
+      </form>
+      <aside className={styles.note}>
+        <strong>Your space, your pace.</strong>
+        <p>This first build sets up your task. Screen capture, voice, and study sessions arrive in the next milestones.</p>
+      </aside>
+      <footer className={styles.footer}>
+        <span>Desktop connection: {snapshot ? 'ready' : 'loading'}</span>
+        <span>{snapshot?.state === 'SETUP' ? 'Task ready' : 'Ready when you are'}</span>
+      </footer>
+    </main>
+  )
+}

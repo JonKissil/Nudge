@@ -147,3 +147,7 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Nudge native helpers and local macOS files
+resources/bin/*
+.DS_Store
