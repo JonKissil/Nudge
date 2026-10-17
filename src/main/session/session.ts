@@ -52,7 +52,7 @@ export function registerScaffoldIpc(
 ): SessionHooks {
   const demoMode = process.env.DEMO_MODE === '1'
   let snapshot: SessionSnapshot = SessionSnapshotSchema.parse({
-    state: 'IDLE', conn: 'disconnected', task: demoMode ? DEMO_TASK : '', minutes: 30,
+    state: 'IDLE', conn: 'disconnected', task: demoMode ? DEMO_TASK : '', minutes: 30, language: 'en',
     overlayPreview: 'hidden',
     settings: { demoMode, showHud: demoMode },
     stats: { framesPerMinute: 0, resumptionHandleAgeMs: null, transitions: [], logs: [], capture: { state: 'off' } },
@@ -190,10 +190,10 @@ export function registerScaffoldIpc(
     if (previous.phase === 'RETURNING' && state.phase !== 'RETURNING') returns.cancel()
     if (state.phase === 'PAUSED' || state.phase === 'ENDED') pushToTalkOpen = false
     if (state.taskWindow) live.updateContext({
-      task: state.task, minutes: state.minutes, taskWindow: state.taskWindow,
+      task: state.task, minutes: state.minutes, language: state.language, taskWindow: state.taskWindow,
       state: state.phase, lastNextStep: state.lastNextStep,
     })
-    snapshot = { ...snapshot, state: state.phase, task: state.task, minutes: state.minutes,
+    snapshot = { ...snapshot, state: state.phase, task: state.task, minutes: state.minutes, language: state.language,
       taskWindow: state.taskWindow, lastStatus: state.lastStatus,
       stats: { ...snapshot.stats, currentWindow: state.currentWindow,
         transitions: state.phase === previous.phase ? snapshot.stats.transitions

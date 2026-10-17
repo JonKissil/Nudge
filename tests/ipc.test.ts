@@ -6,10 +6,12 @@ describe('IPC boundaries', () => {
   it('trims task text and rejects missing or invalid setup fields', () => {
     const schema = IpcSchemas[IPC.sessionStart]
     expect(schema.parse({ task: '  History essay  ', minutes: 30 }).task).toBe('History essay')
+    expect(schema.parse({ task: 'Essay', minutes: 30, language: 'es' }).language).toBe('es')
     for (const input of [
       {}, { task: ' ', minutes: 30 }, { task: 'Essay', minutes: 0 },
       { task: 'Essay', minutes: 1.5 }, { task: 'Essay', minutes: 241 },
-      { task: 'Essay', minutes: '30' }, { task: 'Essay', minutes: 30, apiKey: 'unexpected' },
+      { task: 'Essay', minutes: '30' }, { task: 'Essay', minutes: 30, language: 'xx' },
+      { task: 'Essay', minutes: 30, apiKey: 'unexpected' },
     ]) expect(schema.safeParse(input).success).toBe(false)
   })
 
@@ -54,7 +56,7 @@ describe('IPC boundaries', () => {
 
   it('rejects unknown states and unbounded transition history in snapshots', () => {
     const snapshot = {
-      state: 'IDLE', conn: 'disconnected', task: '', minutes: 30,
+      state: 'IDLE', conn: 'disconnected', task: '', minutes: 30, language: 'en',
       settings: { demoMode: false, showHud: false },
       stats: { framesPerMinute: 0, resumptionHandleAgeMs: null, transitions: [], logs: [] },
     }

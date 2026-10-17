@@ -35,7 +35,7 @@ vi.mock('@google/genai', () => ({
 }))
 
 const context: LiveSessionContext = {
-  task: 'History essay', minutes: 30,
+  task: 'History essay', minutes: 30, language: 'en',
   taskWindow: {
     app: 'Google Chrome', bundleId: 'com.google.Chrome', title: 'Essay - Google Docs',
     url: 'https://docs.google.com/document/d/abc/edit',
@@ -61,7 +61,7 @@ describe('GeminiLiveClient transport', () => {
     expect(sdk.config).toMatchObject({
       responseModalities: ['AUDIO'], mediaResolution: 'MEDIA_RESOLUTION_MEDIUM',
       contextWindowCompression: { slidingWindow: {} }, sessionResumption: {},
-      inputAudioTranscription: {}, outputAudioTranscription: {},
+      inputAudioTranscription: { languageCodes: ['en'] }, outputAudioTranscription: {},
       speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } } },
     })
     expect(sdk.config).not.toHaveProperty('proactivity')
@@ -77,6 +77,14 @@ describe('GeminiLiveClient transport', () => {
     }] }])
     await client.disconnect()
     expect(sdk.closes).toBe(1)
+  })
+
+  it('passes the chosen language to Live transcription and spoken-response instructions', async () => {
+    const client = new GeminiLiveClient('test-key')
+    await client.connect({ ...context, language: 'es' })
+    expect(sdk.config).toMatchObject({ inputAudioTranscription: { languageCodes: ['es'] } })
+    expect(sdk.config).toHaveProperty('systemInstruction', expect.stringContaining('Use Spanish for every spoken reply'))
+    await client.disconnect()
   })
 
   it('queues complete turns during speech and discards obsolete checks at check-in', async () => {

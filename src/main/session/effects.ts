@@ -27,7 +27,7 @@ export async function executeEffect(
     switch (effect.type) {
       case 'CONNECT_LIVE':
         await ports.startLive({
-          task: state.task, minutes: state.minutes, taskWindow: effect.window,
+          task: state.task, minutes: state.minutes, language: state.language, taskWindow: effect.window,
           state: state.phase, lastNextStep: state.lastNextStep,
         })
         break

@@ -200,13 +200,20 @@ const config = {
   contextWindowCompression: { slidingWindow: {} },       // REQUIRED: audio+video sessions die at 2 min without it
   sessionResumption: { handle: lastHandle ?? undefined },
   // No proactivity field: gemini-3.8-live enables proactive audio by default.
-  inputAudioTranscription: {},
+  inputAudioTranscription: { languageCodes: [session.language] }, // selected BCP-47 input hint
   outputAudioTranscription: {},
   speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } } },
 };
 
 session = await ai.live.connect({ model: 'gemini-3.8-live', config, callbacks });
 ```
+
+The language picker on Settings stores one BCP-47 language per study session. Include its name and code in
+`buildSystemInstruction(session)` so spoken replies and pinned questions use that language. The selected
+code is also passed to `inputAudioTranscription.languageCodes` as a recognition hint. The native-audio
+model does **not** support explicitly setting `speechConfig.languageCode` for output; Google's
+[Live capabilities guide](https://ai.google.dev/gemini-api/docs/live-api/capabilities#change-voice-and-language)
+says to constrain its spoken language with system instructions instead. Keep the existing Aoede voice.
 
 ### 6.3 Session lifecycle and reconnection
 
@@ -519,7 +526,7 @@ Define a zod schema for every payload. Channel names live in `src/shared/ipc.ts`
 'overlay:action' { kind: 'take-me-back' | 'snooze' | 'allow' | 'dismiss-note' | 'pause' | 'resume'; id?: string }
 'overlay:hover'  { interactive: boolean }
 // control ↔ main
-'session:start'  { task: string; minutes: number }
+'session:start'  { task: string; minutes: number; language?: LanguageCode } // picker sends it; omitted defaults to English/current setup choice
 'session:lock-window' {}
 'session:end'    {}
 'session:pause-toggle' {}
@@ -543,7 +550,7 @@ Define a zod schema for every payload. Channel names live in `src/shared/ipc.ts`
 - **Demo mode** (`DEMO_MODE=1` or the control-window toggle): uses `DEMO` parameters, pre-fills the task
   ("History essay: causes of the French Revolution", 30 min), and shows the HUD.
 - **Control navigation:** the default home page contains only the task field, duration, and save/start
-  controls, with a Settings button. Settings contains session actions, demo/HUD toggles, permissions,
+  controls, with a Settings button. Settings contains the language picker, session actions, demo/HUD toggles, permissions,
   overlay previews, shortcuts, and diagnostics. Keep marketing copy off the home page. The control
   window is a fixed 440 × 440 square, centered in the primary display's work area on launch/reopen.
   Keep the setup form compact; Settings scrolls inside the same window with its navigation visible.

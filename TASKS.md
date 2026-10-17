@@ -73,6 +73,8 @@ completed components; M8 has a draft deck and script.
 - [ ] Verify unexpected-close backoff, failed resumption → `[CONTEXT_RESTORE]`, and exhausted-retry fallback
   (implemented; failure-path/live acceptance remains open)
 - [x] `prompts.ts` system instruction + turn templates (§6.4, §6.6)
+- [x] Requested session language picker: selected BCP-47 code reaches Live input transcription config
+  and the spoken-language instruction (boundary, reducer, and transport tests; multilingual audio still needs a listening check)
 - [x] `tools.ts`: NON_BLOCKING declarations, zod validation, state-machine handlers, and response scheduling (SILENT verified live)
 - [x] Media window audio: gated 16 kHz mic worklet and 24 kHz playback; interruption flush routed (Terminal voice check + bridge tests)
 - [x] Output transcription → `Captions` (bridge tests, overlay preview, and real output transcription)
@@ -176,7 +178,7 @@ completed components; M8 has a draft deck and script.
 
 ## Stretch (only after M7 passes)
 
-- [ ] Language support
+- [x] Language support
 - [ ] Custom theme support from uploaded jpg or png file (also font support)
 - [ ] Several included base themes
 - [ ] Session recap (focused minutes, returns, steps completed; framed as wins)
@@ -525,3 +527,16 @@ completed components; M8 has a draft deck and script.
   required by the no-interruption turn protocol. This verifies M6, not the full spoken Google Docs demo
   or checkpoint 2. Swift build, typecheck, all 104 tests, lint, production build, diff checks, and the
   final three-renderer dev-launch smoke check passed; test instances were closed.
+- 2026-10-17 — Added a session language picker with ten supported choices. The validated code travels
+  through setup, state, and Live context to `inputAudioTranscription.languageCodes`; the system
+  instruction asks for spoken replies and pinned steps in the selected language. The native-audio
+  model does not accept an output speech language code, so its voice config stays on Aoede. Tests
+  cover language validation, state retention, and the Live configuration. Typecheck, 138 tests,
+  lint, production build, and the three-renderer dev launch passed; the picker and all ten choices
+  appeared in the running control window. An actual multilingual listening check remains open.
+- 2026-10-17 — Combined language support with the compact UI during rebase. All ten choices live in
+  Settings; the home page stays limited to task, duration, and save/start. Start saves the latest language
+  before locking, including changes made after Save. Typecheck, all 138 tests, lint, production build,
+  and an isolated three-renderer dev check passed. Native checks confirmed the centered 440 × 440
+  window, draft retention, French setup, a later Japanese change reaching Start, and Settings navigation.
+  No capture or Live connection was started by this UI check; multilingual listening remains open.

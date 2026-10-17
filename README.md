@@ -38,7 +38,7 @@ editing the geometry in `scripts/build-menu-bar-icons.mjs`.
 ## Mac permissions
 
 Open **Settings** in the control window for Screen Recording, Microphone, and Accessibility status
-and links to System Settings. Demo controls, live status, overlay previews, keyboard shortcuts,
+and links to System Settings. The session language picker, demo controls, live status, overlay previews, keyboard shortcuts,
 and pause/end controls also live here; the home page shows just the task, duration, and save/start controls.
 Grant Screen Recording for capture and window details, Microphone for voice, Accessibility for browser
 details, and Automation for the browser you use (including Safari or Chrome) when macOS asks while
