@@ -24,7 +24,8 @@ do {
     let boxes = (request.results ?? []).compactMap { observation -> TextBox? in
         guard let candidate = observation.topCandidates(1).first else { return nil }
         let box = observation.boundingBox
-        return TextBox(text: candidate.string, x: box.minX, y: 1 - box.minY - box.height, w: box.width, h: box.height)
+        let x = max(0, min(1, box.minX)), y = max(0, min(1, 1 - box.minY - box.height))
+        return TextBox(text: candidate.string, x: x, y: y, w: min(1 - x, box.width), h: min(1 - y, box.height))
     }
     FileHandle.standardOutput.write(try JSONEncoder().encode(boxes))
 } catch {

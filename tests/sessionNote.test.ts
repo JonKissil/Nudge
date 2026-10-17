@@ -23,7 +23,7 @@ describe('session notes', () => {
   })
 
   it('uses an OCR anchor when available and stays valid near a display edge', () => {
-    const lineAnchor = { x: 0.45, y: 0.72, w: 0.2, h: 0.02 }
+    const lineAnchor = { x: 0.45, y: 0.55, w: 0.2, h: 0.02 }
     expect(createSessionNote('next-2', 'Where will you start?', taskWindow, display, 0, lineAnchor).anchor)
       .toEqual(lineAnchor)
     expect(createSessionNote('next-2b', 'Where will you start?', taskWindow, display, 0,
@@ -31,5 +31,14 @@ describe('session notes', () => {
     const edgeWindow = { ...taskWindow, bounds: { x: 1350, y: 800, width: 300, height: 200 } }
     expect(NoteViewSchema.safeParse(createSessionNote('next-3', 'Look at the next line.', edgeWindow, display, 0)).success)
       .toBe(true)
+  })
+
+  it('keeps a line note inside the task window instead of overflowing its right or bottom edge', () => {
+    const note = createSessionNote('edge', 'What is one cause?', taskWindow, display, 0,
+      { x: 0.85, y: 0.85, w: 0.05, h: 0.02 })
+    const left = (note.anchor.x + note.anchor.w) * display.width + 12
+    expect(left).toBeGreaterThanOrEqual(taskWindow.bounds.x)
+    expect(left + 272).toBeLessThanOrEqual(taskWindow.bounds.x + taskWindow.bounds.width)
+    expect(note.anchor.y * display.height + 224).toBeLessThanOrEqual(taskWindow.bounds.y + taskWindow.bounds.height)
   })
 })
