@@ -15,5 +15,6 @@ const api: ControlApi = {
   lockTaskWindow: () => invokeAction(IPC.sessionLockWindow, {}),
   endSession: () => invokeAction(IPC.sessionEnd, {}),
   setSettings: (settings) => invokeAction(IPC.settingsSet, settings),
+  previewOverlay: (action) => invokeAction(IPC.overlayPreview, { action }),
 }
 contextBridge.exposeInMainWorld('nudge', api)

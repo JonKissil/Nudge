@@ -8,6 +8,7 @@ export const IPC = {
   audioPlay: 'audio:play', audioFlush: 'audio:flush', frameRequestFull: 'frame:request-full',
   captureSet: 'capture:set', overlayState: 'overlay:state', overlayAction: 'overlay:action',
   overlayHover: 'overlay:hover', sessionStart: 'session:start', sessionLockWindow: 'session:lock-window',
+  overlayPreview: 'overlay:preview', overlayReady: 'overlay:ready',
   sessionEnd: 'session:end', sessionSnapshot: 'session:snapshot', settingsSet: 'settings:set',
 } as const
 
@@ -27,6 +28,8 @@ export const IpcSchemas = {
   [IPC.overlayState]: OverlayStateSchema,
   [IPC.overlayAction]: OverlayActionSchema,
   [IPC.overlayHover]: z.strictObject({ interactive: z.boolean() }),
+  [IPC.overlayPreview]: z.strictObject({ action: z.enum(['next', 'hide']) }),
+  [IPC.overlayReady]: EmptySchema,
   [IPC.sessionStart]: SessionStartSchema,
   [IPC.sessionLockWindow]: EmptySchema,
   [IPC.sessionEnd]: EmptySchema,
