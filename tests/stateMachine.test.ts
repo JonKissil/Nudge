@@ -64,10 +64,10 @@ describe('study session reducer', () => {
     expect(asked.effects).toMatchObject([{ type: 'SEND_TURN', turn: { tag: 'CHECK' } }])
     state = asked.state
     expect(reduce(state, { type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false }, 2000).effects).toEqual([])
-    state = step(state, { type: 'MODEL_STATUS', status: { on_task: false, activity: 'Maybe a lecture', confidence: 0.4 } }, 3000)
+    state = step(state, { type: 'MODEL_STATUS', checkId: state.checkId!, status: { on_task: false, activity: 'Maybe a lecture', confidence: 0.4 } }, 3000)
     expect(state.phase).toBe('FOCUSED')
     state = step(state, { type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false }, 4000)
-    state = step(state, { type: 'MODEL_STATUS', status: { on_task: false, activity: 'Watching music video', confidence: 0.9 } }, 5000)
+    state = step(state, { type: 'MODEL_STATUS', checkId: state.checkId!, status: { on_task: false, activity: 'Watching music video', confidence: 0.9 } }, 5000)
     expect(state.phase).toBe('DRIFTING')
     expect(state.driftSince).toBe(5000)
     state = step(state, { type: 'WINDOW_OBSERVED', window: doc, verdict: 'on', matchesTask: true }, 6000)
@@ -80,13 +80,47 @@ describe('study session reducer', () => {
     let state = step(setup(), { type: 'WINDOW_OBSERVED', window: video, verdict: 'off', matchesTask: false }, 1000)
     state = step(state, { type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false }, 2000)
     expect(state.checkPending).toBe(true)
-    const failed = reduce(state, { type: 'CHECK_FAILED' }, 3000)
+    const failed = reduce(state, { type: 'CHECK_FAILED', checkId: state.checkId! }, 3000)
     expect(failed.state.phase).toBe('DRIFTING')
     expect(failed.state.driftSince).toBe(1000)
     expect(failed.state.checkPending).toBe(false)
     expect(failed.effects).toEqual([])
     const next = reduce(failed.state, { type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false }, 4000)
     expect(next.effects).toMatchObject([{ type: 'SEND_TURN', turn: { tag: 'CHECK' } }])
+  })
+
+  it('retries a missing result after its deadline without guessing off-task', () => {
+    const asked = step(setup(), { type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false }, 1000)
+    expect(reduce(asked, { type: 'TICK' }, 10_999).effects).toEqual([])
+    const retry = reduce(asked, { type: 'TICK' }, 11_000)
+    expect(retry.state.phase).toBe('FOCUSED')
+    expect(retry.state.checkId).not.toBe(asked.checkId)
+    expect(retry.effects).toMatchObject([{ type: 'SEND_TURN', turn: { tag: 'CHECK', checkId: retry.state.checkId } }])
+    expect(step(retry.state, { type: 'CHECK_FAILED', checkId: asked.checkId! }, 11_001)).toBe(retry.state)
+  })
+
+  it('rejects results for a superseded tab and keeps the newer check pending', () => {
+    const first = step(setup(), { type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false }, 1000)
+    const other = { ...video, url: 'https://youtube.com/watch?v=other' }
+    const second = step(first, { type: 'WINDOW_OBSERVED', window: other, verdict: 'ask', matchesTask: false }, 1001)
+    const status = { on_task: true, activity: 'Earlier essay', confidence: 1 }
+    expect(step(second, { type: 'MODEL_STATUS', checkId: first.checkId!, status }, 1002)).toBe(second)
+    expect(second.checkPending).toBe(true)
+    const accepted = step(second, { type: 'MODEL_STATUS', checkId: second.checkId!,
+      status: { on_task: false, activity: 'Unrelated entertainment', confidence: 0.9 } }, 1003)
+    expect(accepted.phase).toBe('DRIFTING')
+  })
+
+  it('does not reuse check identities across sessions or retry an unavailable window', () => {
+    const first = step(setup(), { type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false }, 1000)
+    let next = step(first, { type: 'END' }, 1001)
+    next = step(next, { type: 'START_SETUP', task: 'New essay', minutes: 30 }, 1002)
+    next = step(next, { type: 'LOCK_WINDOW', window: doc }, 1003)
+    next = step(next, { type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false }, 1004)
+    expect(next.checkId).not.toBe(first.checkId)
+    next = step(next, { type: 'WINDOW_UNAVAILABLE' }, 1005)
+    expect(next.checkPending).toBe(false)
+    expect(reduce(next, { type: 'TICK' }, 30_000).effects).toEqual([])
   })
 
   it('applies grace and rate limits, then opens check-in without more checks', () => {

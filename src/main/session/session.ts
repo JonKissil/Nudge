@@ -246,7 +246,7 @@ export function registerScaffoldIpc(
     getPhase: () => study.state.phase,
     getAllowList: () => store.allowList,
     activateTaskWindow, observeWindow,
-    onWindowUnavailable: () => { observed = undefined },
+    onWindowUnavailable: () => { observed = undefined; void study.dispatch({ type: 'WINDOW_UNAVAILABLE' }) },
     pause: () => study.dispatch({ type: 'PAUSE' }),
     publish, log,
   })
@@ -274,7 +274,7 @@ export function registerScaffoldIpc(
   let tickMs = demoMode ? DEMO.tickMs : DEFAULTS.tickMs
   let lastCheckAt = Date.now()
   setInterval(() => {
-    if (['DRIFTING', 'CHECKIN', 'RETURNING', 'REENTRY', 'SNOOZED'].includes(study.state.phase)) {
+    if (study.state.checkPending || ['DRIFTING', 'CHECKIN', 'RETURNING', 'REENTRY', 'SNOOZED'].includes(study.state.phase)) {
       void study.dispatch({ type: 'TICK' })
     }
     const now = Date.now()

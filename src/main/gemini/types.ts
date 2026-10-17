@@ -16,6 +16,7 @@ export interface LiveTurn {
   tag: TurnTag
   text: string
   turnComplete: boolean
+  checkId?: string
 }
 
 export interface LiveToolCall {
@@ -39,6 +40,7 @@ export type LiveEvent =
   | { type: 'transcription'; text: string }
   | { type: 'user-transcription'; text: string }
   | { type: 'generation-complete' }
+  | { type: 'check-complete'; checkId: string }
   | { type: 'interrupted' }
   | { type: 'error'; message: string }
 

@@ -103,6 +103,10 @@ export class LiveSessionBridge {
       case 'user-transcription': this.sinks.userSpeech(event.text); break
       case 'interrupted': this.sinks.flushAudio(); this.sinks.caption(''); break
       case 'generation-complete': break
+      case 'check-complete':
+        try { await this.handlers.reportStatusFailed?.(event.checkId) }
+        catch { this.sinks.error('Screen check completion failed.') }
+        break
       case 'error': this.sinks.error(event.message); break
     }
   }

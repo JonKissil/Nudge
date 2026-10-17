@@ -1,7 +1,8 @@
 import {
   Behavior, FunctionResponseScheduling, GoogleGenAI, MediaResolution, Modality,
 } from '@google/genai'
-import type { LiveConnectConfig, LiveServerMessage, Session } from '@google/genai'
+import type { LiveConnectConfig, LiveServerMessage, Part, Session } from '@google/genai'
+import { DEFAULTS } from '../../shared/config'
 import { buildLiveConfig } from './config'
 import { contextRestoreTurn } from './prompts'
 import { TOOL_DECLARATIONS } from './tools'
@@ -28,6 +29,10 @@ export class GeminiLiveClient implements LiveClient {
   private awaitingTurn = false
   private modelSpeaking = false
   private checkinActive = false
+  private frameForCheck?: string
+  private activeCheckId?: string
+  private checkingSilently = false
+  private checkTimer?: ReturnType<typeof setTimeout>
 
   constructor(private readonly apiKey = process.env.GEMINI_API_KEY) {}
 
@@ -36,11 +41,17 @@ export class GeminiLiveClient implements LiveClient {
     return () => { this.listeners.delete(listener) }
   }
 
-  updateContext(context: LiveSessionContext): void { this.context = context }
+  updateContext(context: LiveSessionContext): void {
+    this.context = context
+    if (context.state === 'PAUSED') this.latestFrame = undefined
+  }
 
   setCheckinActive(active: boolean): void {
     this.checkinActive = active
-    if (!active) this.flushTurns()
+    if (active) {
+      for (let i = this.turns.length - 1; i >= 0; i--) if (this.turns[i]?.tag === 'CHECK') this.turns.splice(i, 1)
+    }
+    this.flushTurns()
   }
 
   async connect(context: LiveSessionContext): Promise<void> {
@@ -78,26 +89,38 @@ export class GeminiLiveClient implements LiveClient {
     this.awaitingTurn = false
     this.modelSpeaking = false
     this.checkinActive = false
+    clearTimeout(this.checkTimer)
+    this.frameForCheck = undefined
+    this.activeCheckId = undefined
+    this.checkingSilently = false
     this.recovery = undefined
     this.emit({ type: 'connection', state: 'disconnected' })
   }
 
   sendTurn(turn: LiveTurn): void {
+    // Keep only the newest unsent check when a window changes or a check expires.
+    if (turn.tag === 'CHECK') {
+      for (let i = this.turns.length - 1; i >= 0; i--) if (this.turns[i]?.tag === 'CHECK') this.turns.splice(i, 1)
+    }
     this.turns.push(turn)
     this.flushTurns()
   }
 
   sendFrame(jpegBase64: string): void {
-    if (!this.session) { this.latestFrame = jpegBase64; return }
+    this.latestFrame = jpegBase64
+    if (!this.session) return
+    this.frameForCheck = jpegBase64
     try {
-      this.session.sendRealtimeInput({ video: { data: jpegBase64, mimeType: 'image/jpeg' } })
+      this.flushTurns()
+      // A check consumes this capture in its own turn; all other frames use the video stream.
+      if (this.frameForCheck) this.session?.sendRealtimeInput({ video: { data: jpegBase64, mimeType: 'image/jpeg' } })
     } catch {
-      this.latestFrame = jpegBase64
       void this.beginRecovery()
-    }
+    } finally { this.frameForCheck = undefined }
   }
 
   sendAudio(pcm16Base64: string): void {
+    this.checkingSilently = false
     if (this.session) {
       try {
         this.session.sendRealtimeInput({ audio: { data: pcm16Base64, mimeType: 'audio/pcm;rate=16000' } })
@@ -135,7 +158,7 @@ export class GeminiLiveClient implements LiveClient {
     const config: LiveConnectConfig = {
       ...buildLiveConfig(context, handle),
       responseModalities: [Modality.AUDIO],
-      mediaResolution: MediaResolution.MEDIA_RESOLUTION_LOW,
+      mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
       tools: [{ functionDeclarations: TOOL_DECLARATIONS.map((declaration) => ({
         ...declaration, behavior: Behavior.NON_BLOCKING,
       })) }],
@@ -157,9 +180,11 @@ export class GeminiLiveClient implements LiveClient {
     this.session = session
     this.awaitingTurn = false
     this.modelSpeaking = false
+    clearTimeout(this.checkTimer)
+    this.activeCheckId = undefined
     this.emit({ type: 'connection', state: 'connected', resumed: Boolean(handle) })
     this.flushResponses()
-    if (this.latestFrame) { this.sendFrame(this.latestFrame); this.latestFrame = undefined }
+    if (this.latestFrame) session.sendRealtimeInput({ video: { data: this.latestFrame, mimeType: 'image/jpeg' } })
     for (const chunk of this.audio.splice(0)) this.sendAudio(chunk)
     this.flushTurns()
   }
@@ -173,6 +198,8 @@ export class GeminiLiveClient implements LiveClient {
     old?.close()
     this.awaitingTurn = false
     this.modelSpeaking = false
+    clearTimeout(this.checkTimer)
+    this.activeCheckId = undefined
     this.emit({ type: 'connection', state: 'reconnecting' })
     const promise = this.recover(Boolean(this.handle), lifecycleId)
     this.recovery = { lifecycleId, promise }
@@ -216,16 +243,16 @@ export class GeminiLiveClient implements LiveClient {
     }
     const content = message.serverContent
     if (!content) return
-    for (const part of content.modelTurn?.parts ?? []) {
-      if (part.inlineData?.data && part.inlineData.mimeType?.startsWith('audio/')) {
-        this.modelSpeaking = true
-        this.emit({ type: 'audio', pcm24Base64: part.inlineData.data })
-      }
-    }
-    if (content.outputTranscription?.text) this.emit({ type: 'transcription', text: content.outputTranscription.text })
     if (content.inputTranscription?.text?.trim()) {
       this.emit({ type: 'user-transcription', text: content.inputTranscription.text })
     }
+    for (const part of content.modelTurn?.parts ?? []) {
+      if (part.inlineData?.data && part.inlineData.mimeType?.startsWith('audio/')) {
+        this.modelSpeaking = true
+        if (!this.checkingSilently) this.emit({ type: 'audio', pcm24Base64: part.inlineData.data })
+      }
+    }
+    if (content.outputTranscription?.text && !this.checkingSilently) this.emit({ type: 'transcription', text: content.outputTranscription.text })
     if (content.interrupted) this.emit({ type: 'interrupted' })
     if (content.interrupted || content.turnComplete || content.generationComplete) {
       this.modelSpeaking = false
@@ -233,7 +260,12 @@ export class GeminiLiveClient implements LiveClient {
     }
     // generationComplete can precede turnComplete while playback finishes.
     if (content.interrupted || content.turnComplete) {
+      const checkId = this.activeCheckId
+      clearTimeout(this.checkTimer)
+      this.activeCheckId = undefined
       this.awaitingTurn = false
+      // A completed CHECK without report_status must not latch drift detection forever.
+      if (checkId) this.emit({ type: 'check-complete', checkId })
       this.flushTurns()
     }
   }
@@ -241,20 +273,34 @@ export class GeminiLiveClient implements LiveClient {
   private flushTurns(): void {
     while (this.session && this.turns.length > 0) {
       const next = this.turns[0]
+      // The first capture after this request replaces any stale picture of the previous tab.
+      if (next?.checkId && !this.frameForCheck) return
       // A nudge may be queued behind a silent [CHECK] as check-in opens. Deliver that
       // requested prompt once the prior turn ends; ordinary checks remain gated.
       if (!next || (next.turnComplete && (
         this.modelSpeaking || this.awaitingTurn || (this.checkinActive && next.tag !== 'NUDGE')
       ))) return
       this.turns.shift()
+      if (next.turnComplete) { this.activeCheckId = next.checkId; this.checkingSilently = next.tag === 'CHECK' }
       try {
-        this.session.sendClientContent({ turns: [{ role: 'user', parts: [{ text: next.text }] }], turnComplete: next.turnComplete })
+        const parts: Part[] = [{ text: next.text }]
+        // Bind the image to this CHECK: separate media/text streams have no ordering guarantee.
+        if (next.checkId && this.frameForCheck) parts.push({ inlineData: { data: this.frameForCheck, mimeType: 'image/jpeg' } })
+        this.session.sendClientContent({ turns: [{ role: 'user', parts }], turnComplete: next.turnComplete })
+        if (next.checkId) this.frameForCheck = undefined
       } catch {
         this.turns.unshift(next)
         void this.beginRecovery()
         return
       }
-      if (next.turnComplete) { this.awaitingTurn = true; return }
+      if (next.turnComplete) {
+        this.awaitingTurn = true
+        if (next.checkId) this.checkTimer = setTimeout(() => {
+          if (this.activeCheckId === next.checkId) void this.beginRecovery()
+        }, DEFAULTS.checkTimeoutMs)
+        this.checkTimer?.unref()
+        return
+      }
     }
   }
 

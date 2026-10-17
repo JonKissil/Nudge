@@ -7,6 +7,7 @@ import { refreshedTaskUrl } from './taskUrl'
 export interface StudyConfig {
   graceMs: number
   offTaskConfidence: number
+  checkTimeoutMs?: number
   checkinSilenceMs: number
   silentSnoozeMs: number
   returnTimeoutMs: number
@@ -24,6 +25,9 @@ export interface StudyState {
   driftSince?: number
   nudgeTimes: number[]
   checkPending: boolean
+  checkSerial: number
+  checkId?: string
+  checkStartedAt?: number
   checkinLastHeardAt?: number
   snoozeUntil?: number
   returnUntil?: number
@@ -40,8 +44,9 @@ export type StudyEvent =
   | { type: 'START_SETUP'; task: string; minutes: number }
   | { type: 'LOCK_WINDOW'; window: WindowInfo }
   | { type: 'WINDOW_OBSERVED'; window: WindowInfo; verdict: RuleVerdict; matchesTask: boolean }
-  | { type: 'MODEL_STATUS'; status: Status }
-  | { type: 'CHECK_FAILED' }
+  | { type: 'MODEL_STATUS'; status: Status; checkId: string }
+  | { type: 'CHECK_FAILED'; checkId: string }
+  | { type: 'WINDOW_UNAVAILABLE' }
   | { type: 'TASK_URL_UPDATED'; url: string }
   | { type: 'TICK' }
   | { type: 'NUDGE_SENT' }
@@ -73,11 +78,23 @@ export interface StudyResult { state: StudyState; effects: StudyEffect[] }
 export function createStudyState(config: StudyConfig = DEFAULTS): StudyState {
   return {
     phase: 'IDLE', config, task: '', minutes: 30,
-    nudgeTimes: [], checkPending: false, ocrRequested: false, reentrySent: false,
+    nudgeTimes: [], checkPending: false, checkSerial: 0, ocrRequested: false, reentrySent: false,
   }
 }
 
 function result(state: StudyState, effects: StudyEffect[] = []): StudyResult { return { state, effects } }
+
+function windowKey(window: WindowInfo | undefined): string {
+  return JSON.stringify(window && [window.app, window.bundleId, window.ownerPid, window.id, window.title, window.url])
+}
+
+function requestCheck(state: StudyState, window: WindowInfo, now: number): StudyResult {
+  const checkSerial = state.checkSerial + 1
+  const checkId = `check-${checkSerial}`
+  return result({ ...state, checkSerial, checkId, checkPending: true, checkStartedAt: now }, [
+    { type: 'SEND_TURN', turn: checkTurn(window, state.task, checkId) },
+  ])
+}
 
 function enterReentry(state: StudyState, now: number): StudyResult {
   return result({
@@ -98,6 +115,7 @@ function snooze(state: StudyState, now: number, durationMs: number): StudyResult
 }
 
 export function reduce(state: StudyState, event: StudyEvent, now: number): StudyResult {
+  if (event.type === 'WINDOW_UNAVAILABLE') return result({ ...state, checkPending: false, currentWindow: undefined })
   if (event.type === 'TASK_URL_UPDATED') {
     const url = state.taskWindow && refreshedTaskUrl(state.taskWindow, event.url)
     return url && state.taskWindow && state.taskWindow.url !== url
@@ -112,7 +130,8 @@ export function reduce(state: StudyState, event: StudyEvent, now: number): Study
     ])
   }
   if (event.type === 'START_SETUP' && (state.phase === 'IDLE' || state.phase === 'ENDED' || state.phase === 'SETUP')) {
-    return result({ ...createStudyState(state.config), phase: 'SETUP', task: event.task, minutes: event.minutes })
+    return result({ ...createStudyState(state.config), checkSerial: state.checkSerial,
+      phase: 'SETUP', task: event.task, minutes: event.minutes })
   }
   if (event.type === 'LOCK_WINDOW' && state.phase === 'SETUP') {
     return result({ ...state, phase: 'FOCUSED', taskWindow: event.window }, [
@@ -145,13 +164,15 @@ export function reduce(state: StudyState, event: StudyEvent, now: number): Study
     if (event.verdict === 'off') {
       return result({ ...current, phase: 'DRIFTING', driftSince: state.driftSince ?? now, checkPending: false })
     }
-    if (state.checkPending) return result(current)
-    return result({ ...current, checkPending: true }, [{ type: 'SEND_TURN', turn: checkTurn(event.window, state.task) }])
+    if (state.checkPending && windowKey(state.currentWindow) === windowKey(event.window)) return result(current)
+    return requestCheck(current, event.window, now)
   }
-  if (event.type === 'CHECK_FAILED' && state.checkPending && (state.phase === 'FOCUSED' || state.phase === 'DRIFTING')) {
+  if (event.type === 'CHECK_FAILED' && state.checkPending && event.checkId === state.checkId
+    && (state.phase === 'FOCUSED' || state.phase === 'DRIFTING')) {
     return result({ ...state, checkPending: false })
   }
-  if (event.type === 'MODEL_STATUS' && state.checkPending && (state.phase === 'FOCUSED' || state.phase === 'DRIFTING')) {
+  if (event.type === 'MODEL_STATUS' && state.checkPending && event.checkId === state.checkId
+    && (state.phase === 'FOCUSED' || state.phase === 'DRIFTING')) {
     const offTask = !event.status.on_task && event.status.confidence >= state.config.offTaskConfidence
     return result({
       ...state, lastStatus: event.status, checkPending: false,
@@ -160,10 +181,15 @@ export function reduce(state: StudyState, event: StudyEvent, now: number): Study
     })
   }
   if (event.type === 'TICK') {
+    if (['FOCUSED', 'DRIFTING'].includes(state.phase) && state.checkPending && state.currentWindow
+      && state.checkStartedAt !== undefined
+      && now - state.checkStartedAt >= (state.config.checkTimeoutMs ?? DEFAULTS.checkTimeoutMs)) {
+      return requestCheck(state, state.currentWindow, now)
+    }
     if (state.phase === 'DRIFTING' && state.driftSince !== undefined && now - state.driftSince >= state.config.graceMs) {
       const recent = state.nudgeTimes.filter((time) => time > now - 10 * 60_000)
       if (recent.length >= state.config.maxNudgesPer10Min) return result({ ...state, nudgeTimes: recent })
-      return result({ ...state, phase: 'NUDGING', nudgeTimes: [...recent, now] }, [
+      return result({ ...state, phase: 'NUDGING', checkPending: false, nudgeTimes: [...recent, now] }, [
         { type: 'SEND_TURN', turn: nudgeTurn() }, { type: 'SHOW_NUDGE' }, { type: 'OPEN_MIC' },
       ])
     }

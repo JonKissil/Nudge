@@ -196,7 +196,7 @@ const config = {
   responseModalities: [Modality.AUDIO],
   systemInstruction: buildSystemInstruction(session),   // §6.6
   tools: [{ functionDeclarations: TOOL_DECLARATIONS }], // §6.5
-  mediaResolution: MediaResolution.MEDIA_RESOLUTION_LOW, // raise to MEDIUM only if it can't read the doc
+  mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM, // readable screen text for current-screen checks
   contextWindowCompression: { slidingWindow: {} },       // REQUIRED: audio+video sessions die at 2 min without it
   sessionResumption: { handle: lastHandle ?? undefined },
   // No proactivity field: gemini-3.8-live enables proactive audio by default.
@@ -240,8 +240,8 @@ about these tags in the system instruction.
 The `[CHECK]` payload always includes the current window, because text is a much stronger signal than pixels alone:
 
 ```
-[CHECK] app="Google Chrome" title="Why the French Revolution Happened - YouTube" url="youtube.com/watch?v=…"
-Task: "History essay on causes of the French Revolution". Call report_status. Do not speak.
+[CHECK] check_id="check-1" CURRENT foreground: app="Google Chrome" title="Why the French Revolution Happened - YouTube" url="youtube.com/watch?v=…"
+Task: "History essay on causes of the French Revolution". Call report_status with this check_id. Do not speak.
 ```
 
 ### 6.5 Tools
@@ -251,7 +251,7 @@ On invalid arguments, reply `{ ok: false, error }`. Never throw. Always send a t
 
 | Tool | Args | App action | Response scheduling |
 |---|---|---|---|
-| `report_status` | `on_task: boolean`, `activity: string` (≤8 words), `confidence: number` (0–1) | Feed to the state machine. | **SILENT** (the model must not narrate) |
+| `report_status` | `check_id: string` (copied from `[CHECK]`), `on_task: boolean`, `activity: string` (≤8 words), `confidence: number` (0–1) | Feed to the state machine only if this check is still current. | **SILENT** (the model must not narrate) |
 | `focus_task_window` | — | `os/focus.ts` switches to the task window or tab. Go to `RETURNING`. | WHEN_IDLE |
 | `guide_to_task` | — | Overlay shows an arrow or card toward the task tab; poll for arrival. Go to `RETURNING(guided)`. | WHEN_IDLE |
 | `pin_next_step` | `text: string` (≤120 chars), `line_id: string` (`"L7"` or `"none"`) | Overlay sticky note anchored to that OCR line (or the window's margin). Go to `FOCUSED`. | WHEN_IDLE |
@@ -285,7 +285,7 @@ DEFAULT: STAY SILENT. Talking interrupts focus. Speak only when:
   (a) the app sends [NUDGE], (b) the student speaks to you, (c) the app sends [USER_RETURNED], or
   (d) the app sends [SESSION_START].
 
-[CHECK]: Look at the latest screen. Call report_status. Do not speak.
+[CHECK]: Judge the current foreground window and latest screen, not earlier DOC_LINES or the saved task reference. Call report_status with the current check_id. Do not speak.
   Judge on-task generously: reading sources, research, notes, looking up a word, and music playing in the
   background all count as on-task. Videos, feeds, games, and shopping unrelated to the task are off-task.
   If you're unsure, report on_task=true with low confidence.
@@ -329,6 +329,20 @@ Output: `'on' | 'off' | 'ask' | 'ignore'`.
 5. Anything else, **including YouTube** (it could be a lecture) → `ask`, meaning the next tick sends `[CHECK]` to the model.
 
 A model `report_status` counts as off-task only if `on_task === false && confidence >= offTaskConfidence`.
+Each `[CHECK]` has a session-independent serial `check_id`, echoed by `report_status`. A window change
+supersedes its pending check; replies and failures for older IDs cannot change the new window's verdict.
+The transport keeps only the latest unsent check and waits for a fresh frame before sending it.
+Attach that JPEG to the CHECK's clientContent parts: the API does not guarantee ordering between
+realtime media and clientContent. Send each capture once: attach it to a ready CHECK, otherwise use
+the continuous video feed. Cache only the latest image in memory and clear it on pause/disconnect.
+MEDIUM detail improves reading current page content. Check-in drops unsent checks so they cannot
+block a nudge. A completed/interrupted check without a valid report releases the pending flag;
+a `checkTimeoutMs` watchdog also retries while focused or drifting if completion never releases it.
+If the previous CHECK never completes at the transport, resume/reconnect before sending the retry;
+never interrupt that generation by forcing another complete turn onto it.
+Unknown/missing results do not themselves count as off-task. Never retry OS focus/allow actions here.
+Suppress unsolicited CHECK audio/captions in the transport while still tracking backend generation
+to avoid interrupting it. Re-enable speech for audible app turns and gated student microphone input.
 
 ### 7.2 States
 
@@ -357,7 +371,7 @@ A model `report_status` counts as off-task only if `on_task === false && confide
 
 ```ts
 export const DEFAULTS = {
-  tickMs: 10_000, graceMs: 90_000, offTaskConfidence: 0.6,
+  tickMs: 10_000, graceMs: 90_000, offTaskConfidence: 0.6, checkTimeoutMs: 10_000,
   checkinSilenceMs: 20_000, silentSnoozeMs: 120_000, returnTimeoutMs: 60_000,
   maxNudgesPer10Min: 3, snoozeDefaultMin: 5,
   frameMaxFps: 1, keyframeMs: 5_000, diffThreshold: 0.02, frameWidth: 1280, jpegQuality: 0.7,

@@ -15,11 +15,11 @@ const handlers: ToolHandlers = {
 describe('Live tool boundary', () => {
   it('keeps status reports silent and validates their arguments', async () => {
     const valid = await runToolCall({ id: '1', name: 'report_status', args: {
-      on_task: false, activity: 'Watching a video', confidence: 0.9,
+      check_id: 'check-1', on_task: false, activity: 'Watching a video', confidence: 0.9,
     } }, handlers)
     expect(valid).toEqual({ id: '1', name: 'report_status', response: { ok: true }, scheduling: 'silent' })
     const invalid = await runToolCall({ id: '2', name: 'report_status', args: {
-      on_task: false, activity: 'Watching a video', confidence: 3,
+      check_id: 'check-1', on_task: false, activity: 'Watching a video', confidence: 3,
     } }, handlers)
     expect(invalid).toMatchObject({ id: '2', response: { ok: false }, scheduling: 'silent' })
   })

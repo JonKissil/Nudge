@@ -1,5 +1,5 @@
 export const DEFAULTS = {
-  tickMs: 10_000, graceMs: 90_000, offTaskConfidence: 0.6,
+  tickMs: 10_000, graceMs: 90_000, offTaskConfidence: 0.6, checkTimeoutMs: 10_000,
   checkinSilenceMs: 20_000, silentSnoozeMs: 120_000, returnTimeoutMs: 60_000,
   maxNudgesPer10Min: 3, snoozeDefaultMin: 5,
   frameMaxFps: 1, keyframeMs: 5_000, diffThreshold: 0.02,
