@@ -13,6 +13,7 @@ const allowArgs = z.strictObject({ reason: z.string().trim().min(1).max(200) })
 
 export interface ToolHandlers {
   reportStatus(args: Status): Promise<Record<string, unknown>>
+  reportStatusFailed?(): Promise<void>
   focusTaskWindow(): Promise<Record<string, unknown>>
   guideToTask(): Promise<Record<string, unknown>>
   pinNextStep(args: z.infer<typeof pinArgs>): Promise<Record<string, unknown>>
@@ -73,6 +74,11 @@ export async function runToolCall(call: LiveToolCall, handlers: ToolHandlers): P
       ok: false,
       error: error instanceof z.ZodError ? 'Invalid tool arguments.' : 'The action could not be completed.',
     }
+  }
+  if (call.name === 'report_status' && response.ok === false) {
+    // Invalid arguments must not leave the app waiting forever for this check.
+    try { await handlers.reportStatusFailed?.() }
+    catch { /* Keep the original tool error and always respond to the model. */ }
   }
   return { id: call.id, name: call.name, response, scheduling }
 }

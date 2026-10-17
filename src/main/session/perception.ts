@@ -2,6 +2,7 @@ import type { AppWindows } from '../windows'
 import { classifyWindow } from '../drift/rules'
 import { isBrowser, matchWindow } from '../drift/matchWindow'
 import { readActiveWindow, startActiveWindowPoller } from '../os/activeWindow'
+import { queueWindowReads } from '../os/windowReadQueue'
 import { registerScreenCapture } from '../os/screenCapture'
 import { DEFAULTS } from '../../shared/config'
 import { IPC } from '../../shared/ipc'
@@ -35,12 +36,14 @@ export class PerceptionController {
   private readonly stopPoller: () => void
   private readonly stopCaptureHandler: () => void
   private readonly metricsTimer: ReturnType<typeof setInterval>
+  private readonly readWindow = queueWindowReads(readActiveWindow)
 
   constructor(private readonly ports: PerceptionPorts) {
     const media = ports.getWindows()?.media
     if (!media) throw new Error('Media window is not ready')
     this.stopCaptureHandler = registerScreenCapture(media, () => this.captureAllowed(), (message) => ports.log(message))
-    this.stopPoller = startActiveWindowPoller((window) => { void this.observe(window) }, (message) => ports.log(message))
+    this.stopPoller = startActiveWindowPoller((window) => { void this.observe(window) },
+      (message) => ports.log(message), this.readWindow)
     this.metricsTimer = setInterval(() => {
       this.frameTimes = this.frameTimes.filter((time) => time > Date.now() - 60_000)
       ports.updateSnapshot((snapshot) => ({ ...snapshot, stats: { ...snapshot.stats,
@@ -95,7 +98,7 @@ export class PerceptionController {
 
   private async finishLock(version: number): Promise<void> {
     try {
-      const window = await readActiveWindow()
+      const window = await this.readWindow()
       if (this.disposed || version !== this.lockVersion) return
       if (!window || window.ownerPid === process.pid) {
         throw new Error('Switch to your task window during the countdown, then try again.')

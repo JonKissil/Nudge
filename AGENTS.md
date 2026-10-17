@@ -160,6 +160,7 @@ Don't add dependencies beyond these without a one-line justification in the comm
 npm install
 npm run build:ocr      # compiles native/ocr-helper → resources/bin/ocr-helper
 npm run dev            # electron-vite dev (all windows, hot reload)
+npm run start:mac      # build, then open Electron.app directly with macOS Launch Services
 npm run typecheck
 npm test               # vitest
 npm run lint
@@ -509,12 +510,20 @@ Define a zod schema for every payload. Channel names live in `src/shared/ipc.ts`
 
 ## 15. macOS permissions
 
-The app needs **Screen Recording** (capture, plus `get-windows` titles and URLs), **Microphone**, and **Automation →
-Google Chrome** (osascript). It may also need **Accessibility**, depending on `get-windows`.
+The app needs **Screen Recording** (capture and window titles), **Microphone**, **Accessibility** for
+browser details, and **Automation → the supported browser in use**, including Safari and Google Chrome.
+The native window helper uses Apple Events for browser URL reads as well as the later focus actions.
 
 - In dev, macOS attributes permissions to the launching app (Terminal, iTerm, VS Code, or Xcode) *and* Electron. Grant them, then **fully restart**.
+- `npm run start:mac` builds and opens Electron.app through Launch Services for a direct launch. Use it
+  after fully quitting an editor-launched copy when access was granted to Electron. It uses built pages;
+  `npm run dev` remains the hot-reload workflow and may need permissions for its launching editor/terminal.
 - On start, the control window shows a permission checklist (`systemPreferences.getMediaAccessStatus('screen'|'microphone')`)
   with buttons that open the right System Settings pane.
+- Refresh this checklist on focus, visibility changes, and periodically while visible. Accessibility's
+  `isTrustedAccessibilityClient(false)` result describes the current process; false is `not-trusted`,
+  not evidence of an explicit denial in Settings. Show actual running capture/browser URL access as
+  capabilities separately from raw permission flags. Never infer or fabricate a macOS grant.
 - Do all permission granting on the **demo laptop** early in the hackathon, not on demo day.
 
 ## 16. Error handling and degraded mode

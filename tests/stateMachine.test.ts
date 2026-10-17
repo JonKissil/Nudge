@@ -66,6 +66,19 @@ describe('study session reducer', () => {
     expect(reduce(state, { type: 'WINDOW_OBSERVED', window: doc, verdict: 'ignore', matchesTask: false }, 7000).effects).toEqual([])
   })
 
+  it('releases a failed check without changing the last verdict or drift timer', () => {
+    let state = step(setup(), { type: 'WINDOW_OBSERVED', window: video, verdict: 'off', matchesTask: false }, 1000)
+    state = step(state, { type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false }, 2000)
+    expect(state.checkPending).toBe(true)
+    const failed = reduce(state, { type: 'CHECK_FAILED' }, 3000)
+    expect(failed.state.phase).toBe('DRIFTING')
+    expect(failed.state.driftSince).toBe(1000)
+    expect(failed.state.checkPending).toBe(false)
+    expect(failed.effects).toEqual([])
+    const next = reduce(failed.state, { type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false }, 4000)
+    expect(next.effects).toMatchObject([{ type: 'SEND_TURN', turn: { tag: 'CHECK' } }])
+  })
+
   it('applies grace and rate limits, then opens check-in without more checks', () => {
     let state = step(setup(), { type: 'WINDOW_OBSERVED', window: video, verdict: 'off', matchesTask: false }, 0)
     expect(step(state, { type: 'TICK' }, 14_999).phase).toBe('DRIFTING')

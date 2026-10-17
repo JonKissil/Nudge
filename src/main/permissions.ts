@@ -22,7 +22,8 @@ export function registerPermissionsIpc(getWindows: () => AppWindows | undefined)
     return PermissionStatusSchema.parse({
       screen: systemPreferences.getMediaAccessStatus('screen'),
       microphone: systemPreferences.getMediaAccessStatus('microphone'),
-      accessibility: systemPreferences.isTrustedAccessibilityClient(false) ? 'granted' : 'denied',
+      // AXIsProcessTrusted reports this process's trust, not an explicit user denial.
+      accessibility: systemPreferences.isTrustedAccessibilityClient(false) ? 'granted' : 'not-trusted',
     })
   })
   ipcMain.handle(IPC.permissionsOpen, async (event, payload: unknown) => {

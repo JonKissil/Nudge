@@ -100,7 +100,8 @@ export function App() {
         </div>
         <button type="submit" disabled={!snapshot || busy || !task.trim() || Boolean(active)}>Save task <span aria-hidden="true">↗</span></button>
         {snapshot?.state === 'SETUP' && <div className={styles.lockStep}>
-          <p>Open your task document in Chrome, then lock that window. You’ll have three seconds to switch to it.</p>
+          <p>Open your task document in Safari, Chrome, or another supported browser—or in a document app.
+            Then lock that window. You’ll have three seconds to switch to it.</p>
           <button type="button" disabled={busy || Boolean(snapshot.lockWindowAt)}
             onClick={() => { void command(() => getApi().lockTaskWindow(), 'Could not lock the task window.') }}>
             {snapshot.lockWindowAt ? `Switch to your document · ${remaining}` : 'Lock task window'}
@@ -125,7 +126,7 @@ export function App() {
           onChange={(event) => { void command(() => getApi().setSettings({ showHud: event.target.checked }),
             'Could not change the status display.') }} /> Show live status</label>
       </section>
-      <Permissions api={getApi()} />
+      <Permissions api={getApi()} snapshot={snapshot} />
       {snapshot?.settings.showHud && <DevHud snapshot={snapshot} />}
       <section className={styles.preview} aria-label="Overlay preview">
         <div className={styles.previewHeader}><strong>Overlay preview</strong><span>Development</span></div>

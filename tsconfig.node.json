@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": { "composite": true, "types": ["node"], "lib": ["ES2022"] },
-  "include": ["electron.vite.config.ts", "vitest.config.mts", "src/main/**/*", "src/preload/**/*", "src/shared/**/*", "src/renderer/media/frameDiff.ts", "src/renderer/media/pcm16Peak.ts", "tests/**/*"]
+  "include": ["electron.vite.config.ts", "vitest.config.mts", "src/main/**/*", "src/preload/**/*", "src/shared/**/*", "src/renderer/media/frameDiff.ts", "src/renderer/media/pcm16Peak.ts", "src/renderer/control/permissionView.ts", "tests/**/*"]
 }

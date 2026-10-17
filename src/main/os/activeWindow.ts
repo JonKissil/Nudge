@@ -25,13 +25,14 @@ export async function readActiveWindow(): Promise<WindowInfo | undefined> {
 }
 
 export function startActiveWindowPoller(onChange: (window: WindowInfo | undefined) => void,
-  onError: (message: string) => void): () => void {
+  onError: (message: string) => void,
+  readWindow: () => Promise<WindowInfo | undefined> = readActiveWindow): () => void {
   let stopped = false, busy = false, previous = '', lastError = ''
   const poll = async (): Promise<void> => {
     if (stopped || busy) return
     busy = true
     try {
-      const window = await readActiveWindow()
+      const window = await readWindow()
       if (stopped) return
       const key = JSON.stringify(window ?? null)
       if (key !== previous) { previous = key; onChange(window) }

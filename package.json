@@ -10,6 +10,7 @@
   "scripts": {
     "postinstall": "node node_modules/electron/install.js",
     "dev": "electron-vite dev",
+    "start:mac": "node scripts/start-mac.mjs",
     "build": "npm run typecheck && electron-vite build",
     "preview": "electron-vite preview",
     "build:ocr": "bash scripts/build-ocr.sh",
