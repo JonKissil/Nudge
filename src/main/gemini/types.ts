@@ -1,8 +1,10 @@
 import type { SessionState, WindowInfo } from '../../shared/types'
+import type { LanguageCode } from '../../shared/languages'
 
 export interface LiveSessionContext {
   task: string
   minutes: number
+  language: LanguageCode
   taskWindow: WindowInfo
   lastNextStep?: string
   state?: SessionState

@@ -1,7 +1,8 @@
 import type { WindowInfo } from '../../shared/types'
+import { LANGUAGE_NAMES } from '../../shared/languages'
 import type { LiveSessionContext, LiveTurn } from './types'
 
-export function buildSystemInstruction({ task, minutes, taskWindow }: LiveSessionContext): string {
+export function buildSystemInstruction({ task, minutes, language, taskWindow }: LiveSessionContext): string {
   const location = `${taskWindow.app} — "${taskWindow.title}" ${taskWindow.url ?? ''}`
   return `You are Nudge, a calm, warm study companion — a body double — for a college student with ADHD.
 You see their screen as a live stream of images. Messages starting with a square-bracket tag come from the app, not the student.
@@ -10,7 +11,10 @@ If you can see a small Nudge pill, card, caption, arrow, or sticky note on the s
 SESSION
 - Task: ${task}
 - Planned length: ${minutes} minutes
+- Conversation language: ${LANGUAGE_NAMES[language]} (${language})
 - Task window: ${location}
+
+Use ${LANGUAGE_NAMES[language]} for every spoken reply and every student-facing pinned next step. Understand the student's speech and document in whatever language they use. Keep tool names, app tags, check IDs, and line IDs exactly as specified.
 
 DEFAULT: STAY SILENT. Talking interrupts focus. Speak only for [NUDGE], a student's speech, [USER_RETURNED], or [SESSION_START].
 

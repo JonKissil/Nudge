@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import type { ControlApi } from '../../shared/bridge'
 import type { SessionSnapshot } from '../../shared/types'
 import { DEMO_TASK } from '../../shared/config'
+import type { LanguageCode } from '../../shared/languages'
 import { Settings } from './Settings'
 import styles from './App.module.css'
 
@@ -15,6 +16,7 @@ export function App() {
   const [snapshot, setSnapshot] = useState<SessionSnapshot>()
   const [task, setTask] = useState('')
   const [minutes, setMinutes] = useState(30)
+  const [language, setLanguage] = useState<LanguageCode>('en')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [page, setPage] = useState<'home' | 'settings'>('home')
@@ -32,6 +34,7 @@ export function App() {
       setSnapshot(next)
       setTask(next.task)
       setMinutes(next.minutes)
+      setLanguage(next.language)
     }).catch(() => { if (active) setError('Could not load the app. Please restart Nudge.') })
     return () => { active = false; unsubscribe() }
   }, [])
@@ -54,7 +57,7 @@ export function App() {
     setBusy(true)
     setError('')
     try {
-      const result = await getApi().startSession({ task, minutes })
+      const result = await getApi().startSession({ task, minutes, language })
       if (!result.ok) setError(result.error)
     } catch { setError('Could not save your task. Please try again.') }
     finally { setBusy(false) }
@@ -74,6 +77,14 @@ export function App() {
     await command(() => getApi().setSettings({ demoMode: enabled, showHud: enabled || snapshot?.settings.showHud || false }),
       'Could not change demo mode.')
     if (enabled && (!task.trim() || task === snapshot?.task)) { setTask(DEMO_TASK); setMinutes(30) }
+  }
+
+  async function startAndLock(): Promise<void> {
+    await command(async () => {
+      const api = getApi()
+      const saved = await api.startSession({ task, minutes, language })
+      return saved.ok ? api.lockTaskWindow() : saved
+    }, 'Could not start the session.')
   }
 
   const active = Boolean(snapshot && !['IDLE', 'SETUP', 'ENDED'].includes(snapshot.state))
@@ -109,13 +120,13 @@ export function App() {
         {snapshot?.state === 'SETUP' && <div className={styles.lockStep}>
           <p>After starting, switch to your task window within 3 seconds.</p>
           <button type="button" disabled={busy || Boolean(snapshot.lockWindowAt)}
-            onClick={() => { void command(() => getApi().lockTaskWindow(), 'Could not lock the task window.') }}>
+            onClick={() => { void startAndLock() }}>
             {snapshot.lockWindowAt ? `Switch to your task · ${remaining}` : 'Start session'}
           </button>
           {snapshot.lockError && <p role="alert" className={styles.error}>{snapshot.lockError}</p>}
         </div>}
       </form> : <Settings api={getApi()} snapshot={snapshot} busy={busy} active={active}
-        command={command} setDemoMode={setDemoMode} />}
+        command={command} setDemoMode={setDemoMode} language={language} setLanguage={setLanguage} />}
       {error && <p role="alert" className={styles.error}>{error}</p>}
     </main>
   )

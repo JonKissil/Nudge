@@ -5,7 +5,7 @@ import type { ToolHandlers } from '../src/main/gemini/tools'
 import { FakeLiveClient } from './fakes/FakeLiveClient'
 
 const context: LiveSessionContext = {
-  task: 'History essay', minutes: 30,
+  task: 'History essay', minutes: 30, language: 'en',
   taskWindow: {
     app: 'Google Chrome', bundleId: 'com.google.Chrome', title: 'History essay - Google Docs',
     url: 'https://docs.google.com/document/d/doc-123/edit',

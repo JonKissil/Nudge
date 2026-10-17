@@ -1,5 +1,6 @@
 import type { ControlApi } from '../../shared/bridge'
 import type { SessionSnapshot } from '../../shared/types'
+import { LANGUAGE_CODES, LANGUAGE_NATIVE_NAMES, type LanguageCode } from '../../shared/languages'
 import { DevHud } from './DevHud'
 import { Permissions } from './Permissions'
 import styles from './App.module.css'
@@ -9,13 +10,25 @@ interface SettingsProps {
   snapshot?: SessionSnapshot
   busy: boolean
   active: boolean
+  language: LanguageCode
+  setLanguage: (language: LanguageCode) => void
   command: (action: () => Promise<{ ok: boolean; error?: string }>, failure: string) => Promise<void>
   setDemoMode: (enabled: boolean) => Promise<void>
 }
 
-export function Settings({ api, snapshot, busy, active, command, setDemoMode }: SettingsProps) {
+export function Settings({ api, snapshot, busy, active, language, setLanguage, command, setDemoMode }: SettingsProps) {
   return (
     <div className={styles.settingsPage}>
+      <section className={styles.card} aria-label="Conversation language">
+        <label htmlFor="language">Language</label>
+        <select id="language" className={styles.language} value={language} lang={language}
+          onChange={(event) => setLanguage(event.target.value as LanguageCode)}
+          disabled={!snapshot || busy || active || Boolean(snapshot.lockWindowAt)}>
+          {LANGUAGE_CODES.map((code) => <option key={code} value={code} lang={code} dir="auto">
+            {LANGUAGE_NATIVE_NAMES[code]}
+          </option>)}
+        </select>
+      </section>
       {active && <section className={styles.card} aria-label="Current session">
         <strong>Current session</strong>
         <p role="status">{snapshot?.state} · {snapshot?.taskWindow?.title ?? 'Task window locked'}</p>

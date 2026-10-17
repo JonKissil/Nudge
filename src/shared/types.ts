@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { LanguageCodeSchema } from './languages'
 
 export const SessionStateSchema = z.enum([
   'IDLE', 'SETUP', 'FOCUSED', 'DRIFTING', 'NUDGING', 'CHECKIN',
@@ -96,12 +97,13 @@ export const OverlayPreviewSchema = z.enum([
 export type OverlayPreview = z.infer<typeof OverlayPreviewSchema>
 export const SessionStartSchema = z.strictObject({
   task: z.string().trim().min(1).max(1000), minutes: z.number().int().min(1).max(240),
+  language: LanguageCodeSchema.optional(),
 })
 export type SessionStart = z.infer<typeof SessionStartSchema>
 export const SessionSnapshotSchema = z.strictObject({
   state: SessionStateSchema, taskWindow: WindowInfoSchema.optional(), lastStatus: StatusSchema.optional(),
   conn: ConnStateSchema, stats: HudStatsSchema, settings: SettingsSchema,
-  task: z.string(), minutes: z.number().int().min(1).max(240),
+  task: z.string(), minutes: z.number().int().min(1).max(240), language: LanguageCodeSchema,
   micOpen: z.boolean().optional(),
   lockWindowAt: z.number().nonnegative().optional(),
   lockError: z.string().optional(),

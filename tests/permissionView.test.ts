@@ -5,7 +5,7 @@ import { PermissionStatusSchema } from '../src/shared/types'
 
 const status: PermissionStatus = { screen: 'denied', microphone: 'granted', accessibility: 'not-trusted' }
 const snapshot: SessionSnapshot = {
-  state: 'FOCUSED', conn: 'connected', task: 'Essay', minutes: 30,
+  state: 'FOCUSED', conn: 'connected', task: 'Essay', minutes: 30, language: 'en',
   settings: { demoMode: false, showHud: false },
   stats: { framesPerMinute: 0, resumptionHandleAgeMs: null, transitions: [], logs: [], capture: { state: 'off' } },
 }

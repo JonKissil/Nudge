@@ -1,4 +1,5 @@
 import { DEFAULTS } from '../../shared/config'
+import type { LanguageCode } from '../../shared/languages'
 import type { RuleVerdict, SessionState, Status, WindowInfo } from '../../shared/types'
 import { checkTurn, nudgeTurn, returnedTurn, sessionStartTurn, snoozeOverTurn } from '../gemini/prompts'
 import type { LiveTurn } from '../gemini/types'
@@ -19,6 +20,7 @@ export interface StudyState {
   config: StudyConfig
   task: string
   minutes: number
+  language: LanguageCode
   taskWindow?: WindowInfo
   currentWindow?: WindowInfo
   lastStatus?: Status
@@ -41,7 +43,7 @@ export interface StudyState {
 
 export type StudyEvent =
   | { type: 'SET_CONFIG'; config: StudyConfig }
-  | { type: 'START_SETUP'; task: string; minutes: number }
+  | { type: 'START_SETUP'; task: string; minutes: number; language?: LanguageCode }
   | { type: 'LOCK_WINDOW'; window: WindowInfo }
   | { type: 'WINDOW_OBSERVED'; window: WindowInfo; verdict: RuleVerdict; matchesTask: boolean }
   | { type: 'MODEL_STATUS'; status: Status; checkId: string }
@@ -77,7 +79,7 @@ export interface StudyResult { state: StudyState; effects: StudyEffect[] }
 
 export function createStudyState(config: StudyConfig = DEFAULTS): StudyState {
   return {
-    phase: 'IDLE', config, task: '', minutes: 30,
+    phase: 'IDLE', config, task: '', minutes: 30, language: 'en',
     nudgeTimes: [], checkPending: false, checkSerial: 0, ocrRequested: false, reentrySent: false,
   }
 }
@@ -131,7 +133,7 @@ export function reduce(state: StudyState, event: StudyEvent, now: number): Study
   }
   if (event.type === 'START_SETUP' && (state.phase === 'IDLE' || state.phase === 'ENDED' || state.phase === 'SETUP')) {
     return result({ ...createStudyState(state.config), checkSerial: state.checkSerial,
-      phase: 'SETUP', task: event.task, minutes: event.minutes })
+      phase: 'SETUP', task: event.task, minutes: event.minutes, language: event.language ?? state.language })
   }
   if (event.type === 'LOCK_WINDOW' && state.phase === 'SETUP') {
     return result({ ...state, phase: 'FOCUSED', taskWindow: event.window }, [

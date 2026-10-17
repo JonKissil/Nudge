@@ -8,7 +8,7 @@ export function buildLiveConfig(context: LiveSessionContext, handle?: string) {
     systemInstruction: buildSystemInstruction(context),
     contextWindowCompression: { slidingWindow: {} },
     sessionResumption: { handle },
-    inputAudioTranscription: {},
+    inputAudioTranscription: { languageCodes: [context.language] },
     outputAudioTranscription: {},
     speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } } },
   }

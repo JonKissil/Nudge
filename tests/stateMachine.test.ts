@@ -50,6 +50,13 @@ describe('study session reducer', () => {
     expect(locked.effects[2]).toMatchObject({ turn: { tag: 'SESSION_START', turnComplete: true } })
   })
 
+  it('keeps the chosen language when locking the task window', () => {
+    const setup = reduce(createStudyState(config), {
+      type: 'START_SETUP', task: 'Essay', minutes: 30, language: 'fr',
+    }, 0).state
+    expect(reduce(setup, { type: 'LOCK_WINDOW', window: doc }, 100).state.language).toBe('fr')
+  })
+
   it('switches demo timing without resetting the active task or drift timer', () => {
     const drifting = step(setup(), { type: 'WINDOW_OBSERVED', window: video, verdict: 'off', matchesTask: false }, 1000)
     const updated = reduce(drifting, { type: 'SET_CONFIG', config: { ...config, graceMs: 90_000 } }, 5000)
