@@ -475,8 +475,8 @@ export const DEMO = { ...DEFAULTS, tickMs: 4_000, graceMs: 15_000, checkinSilenc
   Hackathon rooms are loud, and an always-hot mic makes the model answer strangers.
   When the mic closes, send `sendRealtimeInput({ audioStreamEnd: true })`.
 - **Playback:** model audio is 24 kHz Int16 PCM. Feed its chunks to one 24 kHz `AudioWorklet` stream with a short
-  jitter cushion. Preserve sample continuity across chunk boundaries, fade only when the stream runs dry,
-  and clear the worklet queue on `interrupted`. On study-session end, close the audio context and create
+  jitter cushion. Preserve sample continuity across chunk boundaries, ramp gain smoothly as the stream
+  runs dry or refills, and clear the worklet queue on `interrupted`. On study-session end, close the audio context and create
   a fresh one for the next session.
 - **Recommend headphones for the demo** to prevent echo; barge-in still works.
 
@@ -523,6 +523,8 @@ Define a zod schema for every payload. Channel names live in `src/shared/ipc.ts`
   pause/resume, end, and quit. Closing the native control window hides it while the session continues;
   **Quit Nudge** ends the session and exits. Keep the tray subscribed to main's real session snapshot,
   never the overlay preview state. Icon assets include 1x/2x PNGs; `npm run build:icons` regenerates them.
+- Nudge holds Electron's single-instance lock. A second desktop or terminal launch brings the existing
+  control window forward instead of opening another media window and Live session.
 - `⌘⇧Space`: push-to-talk toggle. `⌘⇧P`: pause/resume. `⌘⇧D`: show/hide the dev HUD.
 - **Demo mode** (`DEMO_MODE=1` or the control-window toggle): uses `DEMO` parameters, pre-fills the task
   ("History essay: causes of the French Revolution", 30 min), and shows the HUD.

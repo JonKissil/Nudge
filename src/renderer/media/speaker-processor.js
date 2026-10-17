@@ -9,7 +9,7 @@ class NudgeSpeakerProcessor extends AudioWorkletProcessor {
     this.buffered = 0
     this.playing = false
     this.waited = 0
-    this.fadeIn = 0
+    this.gain = 0
     this.fadeSamples = Math.max(1, Math.round(sampleRate * 0.006))
     this.cushionSamples = Math.round(sampleRate * 0.18)
     this.lastOutput = 0
@@ -22,6 +22,7 @@ class NudgeSpeakerProcessor extends AudioWorkletProcessor {
         this.buffered = 0
         this.playing = false
         this.waited = 0
+        this.gain = 0
         this.tail = this.fadeSamples
         this.tailValue = this.lastOutput
       } else if (data?.type === 'audio' && data.samples instanceof ArrayBuffer) {
@@ -55,23 +56,22 @@ class NudgeSpeakerProcessor extends AudioWorkletProcessor {
       if (this.buffered >= this.cushionSamples || this.waited >= this.cushionSamples) {
         this.playing = true
         this.waited = 0
-        this.fadeIn = this.fadeSamples
+        this.gain = 0
       }
     }
     for (let i = 0; i < output.length; i += 1) {
       let value = 0
       if (this.playing && this.buffered > 0) {
-        value = this.nextSample()
-        if (this.fadeIn > 0) {
-          value *= 1 - this.fadeIn / this.fadeSamples
-          this.fadeIn -= 1
-        }
-        // If delivery runs dry, approach silence before the final sample.
-        // If another packet arrives in time, its samples remain continuous.
-        if (this.buffered < this.fadeSamples) value *= this.buffered / this.fadeSamples
+        const sample = this.nextSample()
+        // A late packet can arrive while the queue is nearly empty. Limit the
+        // gain's rise as well as its fall so refilling cannot make a sharp pop.
+        const targetGain = Math.min(1, this.buffered / this.fadeSamples)
+        this.gain = Math.min(targetGain, this.gain + 1 / this.fadeSamples)
+        value = sample * this.gain
         if (this.buffered === 0) {
           this.playing = false
           this.waited = 0
+          this.gain = 0
         }
       } else if (this.tail > 0) {
         value = this.tailValue * this.tail / this.fadeSamples

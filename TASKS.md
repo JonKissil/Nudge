@@ -406,6 +406,14 @@ M7 has several completed components; M8 has a draft deck and script.
   waits for end cleanup. Added restart/reconnect, cancelled-start, and fresh-player tests. Typecheck,
   77 tests, lint, production build, diff checks, and a separate `npm run dev` launch passed. The separate
   app was closed after the launch check. Audible acceptance remains open.
+- 2026-10-17 — Voice follow-up: the checked-out `BeepFix` branch still pointed to the commit before the
+  merged voice fixes, and an older development Nudge process was running beside the built app. Fast-forwarded
+  this branch to the merged fix, closed the duplicate, and added Electron's single-instance lock so a
+  second terminal launch focuses the first window. Smoothed the speaker worklet's gain when a late chunk
+  refills an almost empty queue; a regression test covers that boundary. Typecheck, 99 tests, lint,
+  production build, and diff checks passed. A second launch exited while the first remained; the older
+  development app was then closed and one updated built app was opened and inspected in its idle state.
+  Audible acceptance remains open because the student could not provide a recording or listening check yet.
 - 2026-10-17 — M6 implemented: full-resolution frames are cropped to the current task window's content
   region and recognized by Vision. Pure line grouping filters bounds and Nudge UI, joins row fragments,
   trims text to 100 characters, and retains the last 60 visible lines. `[USER_RETURNED][DOC_LINES]` and
