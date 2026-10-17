@@ -435,6 +435,13 @@ export const DEMO = { ...DEFAULTS, tickMs: 4_000, graceMs: 15_000, checkinSilenc
 
 - **Safari:** the same pattern with `current tab of w`. **Any other app:** `tell application "{name}" to activate`.
 - The first run triggers a macOS **Automation** permission prompt (§15).
+- User-requested closed-tab recovery: save the locked browser's complete URL at lock and refresh it
+  every 10 seconds by reading matching open tabs, including background tabs. Preserve query/fragment
+  changes and Google Docs view changes, but never replace the task with an unrelated page. Store one
+  checkpoint in the existing local JSON; Pause suspends reads and End clears it. Read requests must
+  not launch browsers or change focus. An explicit return first selects an existing matching tab; only
+  when none exists does it open the saved HTTP(S) URL in that browser. Do this in one AppleScript
+  action, without automatically retrying an action after an error. The native poller still confirms arrival.
 - **Guided mode (`guide_to_task`):** OCR the top ~12% of the latest frame (the tab strip) for the task tab's title
   (fuzzy match on its first 20 characters). If found, point the `Arrow` at it, labeled "Your essay's here". If not, show a
   card at the top center saying "Click: {title}" with a *Take me there* button. Arrival is confirmed **deterministically**

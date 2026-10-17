@@ -30,6 +30,16 @@ function checkin(now = 15_000): StudyState {
 }
 
 describe('study session reducer', () => {
+  it('refreshes only the locked task URL without resetting focus or accepting another document', () => {
+    const state = setup()
+    const updated = reduce(state, { type: 'TASK_URL_UPDATED', url: `${doc.url}?tab=2#heading` }, 10_000)
+    expect(updated.state.taskWindow?.url).toBe(`${doc.url}?tab=2#heading`)
+    expect(updated.state.phase).toBe('FOCUSED')
+    expect(updated.effects).toEqual([])
+    expect(reduce(updated.state, { type: 'TASK_URL_UPDATED', url: video.url! }, 20_000).state).toBe(updated.state)
+    const ended = step(updated.state, { type: 'END' }, 20_000)
+    expect(reduce(ended, { type: 'TASK_URL_UPDATED', url: doc.url! }, 21_000).state).toBe(ended)
+  })
   it('moves from setup to focused with one Live connection and greeting', () => {
     const initial = createStudyState(config)
     const setupResult = reduce(initial, { type: 'START_SETUP', task: 'History essay', minutes: 30 }, 0)
@@ -113,7 +123,7 @@ describe('study session reducer', () => {
       let state = checkin()
       const returning = reduce(state, { type: 'RETURN_REQUEST', mode }, 16_000)
       expect(returning.state.phase).toBe('RETURNING')
-      expect(returning.effects[0]?.type).toBe(mode === 'focused' ? 'FOCUS_TASK' : 'GUIDE_TASK')
+      expect(returning.effects).toContainEqual({ type: mode === 'focused' ? 'FOCUS_TASK' : 'GUIDE_TASK' })
       state = step(returning.state, { type: 'WINDOW_OBSERVED', window: doc, verdict: 'on', matchesTask: true }, 17_000)
       expect(state.phase).toBe('REENTRY')
       expect(step(state, { type: 'TICK' }, 17_799).ocrRequested).toBe(false)

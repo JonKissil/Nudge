@@ -1,5 +1,6 @@
 import { app, ipcMain, screen, systemPreferences } from 'electron'
 import { randomUUID } from 'node:crypto'
+import { join } from 'node:path'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { z } from 'zod'
 import { DEFAULTS, DEMO, DEMO_TASK } from '../../shared/config'
@@ -19,6 +20,9 @@ import { effectiveVerdict } from './offline'
 import { applyPreviewAction, createOverlayPreview, OVERLAY_PREVIEWS } from './overlayPreview'
 import { createSessionNote, visibleNotes } from './sessionNote'
 import { PerceptionController } from './perception'
+import { ReturnActions, type Guidance } from './returnActions'
+import { AppStore } from '../store'
+import { TaskRecovery } from './taskRecovery'
 
 export interface SessionHooks {
   // M2 calls this after its three-second active-window lock resolves.
@@ -36,7 +40,7 @@ export type SessionActionPorts = Pick<EffectPorts, 'focusTask' | 'guideTask' | '
   locateLine?(lineId: string): Promise<NormalizedBox | undefined>
 }
 
-// Track A supplies window observation and OS actions through this boundary.
+// Main owns the real OS actions; optional ports also support document OCR integration.
 export function registerScaffoldIpc(
   getWindows: () => AppWindows | undefined, actions?: SessionActionPorts,
 ): SessionHooks {
@@ -54,6 +58,7 @@ export function registerScaffoldIpc(
   app.once('before-quit', () => { clearTimeout(expiryTimer) })
   let caption = ''
   let nudgeVisible = false
+  let guidance: Guidance = {}
   let sessionNotes: NoteView[] = []
   let noteSerial = 0
   let observed: { window: WindowInfo; verdict: RuleVerdict; matchesTask: boolean } | undefined
@@ -77,11 +82,12 @@ export function registerScaffoldIpc(
       pill: { state: snapshot.state, offline: snapshot.conn === 'degraded',
         snoozeUntil: study.state.snoozeUntil, micOpen: snapshot.micOpen },
       nudge: nudgeVisible ? { text: 'Still with your task, or taking a break?' } : undefined,
+      ...guidance,
       notes: sessionNotes, caption,
     })
     const isPreviewing = snapshot.state === 'IDLE' || snapshot.state === 'ENDED'
     const overlay = isPreviewing ? previewOverlay : sessionOverlay
-    const interactiveKey = `${overlay.pill.state}|${Boolean(overlay.nudge)}|${overlay.notes.map((note) => note.id).join(',')}`
+    const interactiveKey = `${overlay.pill.state}|${Boolean(overlay.nudge)}|${Boolean(overlay.guidance)}|${overlay.notes.map((note) => note.id).join(',')}`
     if (interactiveKey !== lastInteractiveKey) {
       windows.overlay.setIgnoreMouseEvents(true, { forward: true })
       lastInteractiveKey = interactiveKey
@@ -134,8 +140,8 @@ export function registerScaffoldIpc(
       if (show && snapshot.conn === 'degraded') getWindows()?.media.webContents.send(IPC.audioChime, {})
       publish()
     },
-    focusTask: (window) => actions?.focusTask(window) ?? Promise.resolve(false),
-    guideTask: (window) => actions?.guideTask(window) ?? Promise.resolve(false),
+    focusTask: (window) => actions?.focusTask(window) ?? returns.focus(window),
+    guideTask: (window) => actions?.guideTask(window) ?? returns.guide(window),
     ocrLines: async () => {
       try { return await actions?.ocrLines() ?? [] }
       catch { log('OCR unavailable; using a margin note.'); return [] }
@@ -152,10 +158,18 @@ export function registerScaffoldIpc(
       )]
       publish()
     },
-    allowWindow: (window) => actions?.allowWindow(window)
-      ?? Promise.reject(new Error('The allow-list is not ready.')),
+    allowWindow: async (window) => {
+      if (actions) { await actions.allowWindow(window); return }
+      const current = await perception.readCurrentWindow()
+      if (!current || current.ownerPid === process.pid) throw new Error('Bring the page or app you want to allow to the front.')
+      if (study.state.phase !== 'CHECKIN') throw new Error('The check-in has ended.')
+      await store.allow(current)
+      await perception.refreshWindow(current)
+      log('Current page or app added to the saved allow-list.')
+    },
   }
   const study = new StudyEngine(demoMode ? DEMO : DEFAULTS, ports, (state, previous) => {
+    if (previous.phase === 'RETURNING' && state.phase !== 'RETURNING') returns.cancel()
     if (state.phase === 'PAUSED' || state.phase === 'ENDED') pushToTalkOpen = false
     if (state.taskWindow) live.updateContext({
       task: state.task, minutes: state.minutes, taskWindow: state.taskWindow,
@@ -170,6 +184,8 @@ export function registerScaffoldIpc(
     }
     syncMic()
     publish()
+    if (previous.phase === 'SETUP' && state.phase === 'FOCUSED' && state.taskWindow) recovery.start(state.taskWindow)
+    if (state.phase === 'ENDED' || (state.phase === 'SETUP' && previous.phase !== 'SETUP')) recovery.stop()
   })
   const live = new LiveSessionBridge(new GeminiLiveClient(), createStudyToolHandlers(study), {
     playAudio: (pcm24Base64) => getWindows()?.media.webContents.send(IPC.audioPlay, { pcm24Base64 }),
@@ -209,12 +225,23 @@ export function registerScaffoldIpc(
     getWindows, getSnapshot: () => snapshot,
     updateSnapshot: (update) => { snapshot = update(snapshot) },
     getPhase: () => study.state.phase,
+    getAllowList: () => store.allowList,
     activateTaskWindow, observeWindow,
     onWindowUnavailable: () => { observed = undefined },
     pause: () => study.dispatch({ type: 'PAUSE' }),
     publish, log,
   })
-  app.once('before-quit', () => { perception.dispose() })
+  const store = new AppStore(join(app.getPath('userData'), 'state.json'), (message) => log(message))
+  const returns = new ReturnActions({
+    requestFullFrame: () => perception.requestFullFrame(),
+    showGuidance: (view) => { guidance = view; publish() }, log,
+  })
+  const recovery = new TaskRecovery({
+    getPhase: () => study.state.phase, readUrl: (window) => perception.readTaskUrl(window),
+    updateUrl: (url) => study.dispatch({ type: 'TASK_URL_UPDATED', url }),
+    save: (task) => store.saveTaskTab(task), log,
+  })
+  app.once('before-quit', () => { recovery.dispose(); perception.dispose() })
 
   let tickMs = demoMode ? DEMO.tickMs : DEFAULTS.tickMs
   let lastCheckAt = Date.now()
@@ -394,7 +421,7 @@ export function registerScaffoldIpc(
   return {
     activateTaskWindow, observeWindow,
     requestFullFrame: () => perception.requestFullFrame(),
-    dispose: () => perception.dispose(),
+    dispose: () => { recovery.dispose(); perception.dispose() },
     togglePushToTalk: () => {
       if (['IDLE', 'SETUP', 'PAUSED', 'ENDED'].includes(study.state.phase)) {
         return { ok: false, error: 'Start or resume a study session to use push-to-talk.' }

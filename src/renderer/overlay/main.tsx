@@ -4,6 +4,7 @@ import type { OverlayApi } from '../../shared/bridge'
 import type { OverlayState } from '../../shared/types'
 import { Pill } from './Pill'
 import { NudgeCard } from './NudgeCard'
+import { GuidanceCard } from './GuidanceCard'
 import { Arrow } from './Arrow'
 import { StickyNote } from './StickyNote'
 import { Captions } from './Captions'
@@ -44,13 +45,14 @@ export function Overlay() {
     // Text and timer updates should not disable a button while it is being clicked.
     getApi().setInteractive(false)
     interactive.current = false
-  }, [state?.pill.state, Boolean(state?.nudge), state?.notes.map((note) => note.id).join(',')])
+  }, [state?.pill.state, Boolean(state?.nudge), Boolean(state?.guidance), state?.notes.map((note) => note.id).join(',')])
 
   const controls = { onAction: getApi().action, onInteractive }
   const visible = state && !['IDLE', 'SETUP', 'ENDED'].includes(state.pill.state)
   return <div className={styles.surface}>
     {visible && <Pill pill={state.pill} now={now} {...controls} />}
     {state?.nudge && <NudgeCard nudge={state.nudge} {...controls} />}
+    {state?.guidance && <GuidanceCard text={state.guidance.text} {...controls} />}
     {state?.arrow && <Arrow arrow={state.arrow} />}
     {state?.notes.map((note) => <StickyNote key={`${note.id}:${note.expiresAt}`} note={note} {...controls} />)}
     {state?.caption?.trim() && <Captions text={state.caption} />}

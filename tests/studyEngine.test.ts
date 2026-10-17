@@ -24,6 +24,7 @@ function fixture(focusSucceeds = true, guideSucceeds = true) {
   const focus = vi.fn(async () => focusSucceeds)
   const guide = vi.fn(async () => guideSucceeds)
   const note = vi.fn(async () => {})
+  const allow = vi.fn(async (window: WindowInfo) => { void window })
   const ports: EffectPorts = {
     startLive: (context) => bridge.start(context), stopLive: () => bridge.stop(),
     sendTurn: (turn) => bridge.sendTurn(turn),
@@ -32,14 +33,14 @@ function fixture(focusSucceeds = true, guideSucceeds = true) {
     setCaptureRunning: capture, showNudge: nudge,
     focusTask: focus, guideTask: guide,
     ocrLines: async () => ['L1: The Estates-General met in 1789'],
-    pinNote: note, allowWindow: async () => {},
+    pinNote: note, allowWindow: allow,
   }
   const engine = new StudyEngine(config, ports, undefined, () => now)
   const bridge = new LiveSessionBridge(client, createStudyToolHandlers(engine), {
     playAudio: () => {}, flushAudio: () => {}, caption: () => {}, userSpeech: () => {}, micSet: () => {},
     connection: () => {}, resumptionHandle: () => {}, error: () => {},
   })
-  return { client, engine, bridge, capture, nudge, focus, guide, note, setNow: (value: number) => { now = value } }
+  return { client, engine, bridge, capture, nudge, focus, guide, note, allow, setNow: (value: number) => { now = value } }
 }
 
 async function reachCheckin(f: ReturnType<typeof fixture>): Promise<void> {
@@ -56,6 +57,54 @@ async function reachCheckin(f: ReturnType<typeof fixture>): Promise<void> {
 }
 
 describe('study engine and Live tool loop', () => {
+  it('allows the latest check-in window, ignoring our own controls', async () => {
+    const f = fixture()
+    await reachCheckin(f)
+    const lecture = { ...video, url: 'https://youtube.com/watch?v=lecture' }
+    await f.engine.dispatch({ type: 'WINDOW_OBSERVED', window: lecture, verdict: 'ask', matchesTask: false })
+    await f.engine.dispatch({ type: 'WINDOW_OBSERVED', window: { ...doc, app: 'Nudge' }, verdict: 'ignore', matchesTask: false })
+    f.client.emit({ type: 'tool-call', call: { id: 'allow', name: 'allow_current_window', args: { reason: 'Essay research' } } })
+    await vi.waitFor(() => expect(f.client.toolResponses).toHaveLength(2))
+    expect(f.allow).toHaveBeenCalledExactlyOnceWith(lecture)
+    expect(f.engine.state.phase).toBe('FOCUSED')
+    expect(f.client.checkinActive).toBe(false)
+    await f.engine.dispatch({ type: 'END' })
+    f.bridge.dispose()
+  })
+
+  it('keeps a failed save in check-in and does not undo End after an in-flight save', async () => {
+    const f = fixture()
+    await reachCheckin(f)
+    f.allow.mockRejectedValueOnce(new Error('Disk full'))
+    expect(await f.engine.dispatch({ type: 'ALLOW_CURRENT' })).toEqual({ ok: false, error: 'Disk full' })
+    expect(f.engine.state.phase).toBe('CHECKIN')
+    let finish!: () => void
+    f.allow.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve }))
+    const pending = f.engine.dispatch({ type: 'ALLOW_CURRENT' })
+    await f.engine.dispatch({ type: 'END' })
+    finish()
+    await pending
+    expect(f.engine.state.phase).toBe('ENDED')
+    f.bridge.dispose()
+  })
+
+  it('lets the guided fallback button focus once, then waits for a real arrival', async () => {
+    const f = fixture()
+    await reachCheckin(f)
+    await f.engine.dispatch({ type: 'RETURN_REQUEST', mode: 'guided' })
+    expect(f.guide).toHaveBeenCalledOnce()
+    const tools = createStudyToolHandlers(f.engine)
+    expect(await tools.focusTaskWindow()).toEqual({ ok: true })
+    expect((await tools.focusTaskWindow()).ok).toBe(false)
+    expect(f.focus).toHaveBeenCalledOnce()
+    expect(f.engine.state.phase).toBe('RETURNING')
+    await f.engine.dispatch({ type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false })
+    expect(f.engine.state.phase).toBe('RETURNING')
+    await f.engine.dispatch({ type: 'WINDOW_OBSERVED', window: doc, verdict: 'on', matchesTask: true })
+    expect(f.engine.state.phase).toBe('REENTRY')
+    await f.engine.dispatch({ type: 'END' })
+    f.bridge.dispose()
+  })
   it('rejects an invalid status and accepts the next scheduled screen check', async () => {
     const f = fixture()
     await f.engine.dispatch({ type: 'START_SETUP', task: 'History essay', minutes: 30 }, 0)

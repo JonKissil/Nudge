@@ -11,6 +11,7 @@ Git and loaded only in Electron's main process. Never put the key in a renderer 
 
 ```bash
 npm install
+npm run build:ocr
 npm run dev
 ```
 
@@ -63,5 +64,17 @@ npm run lint
 npm run build
 ```
 
-`npm run build:ocr` compiles the native Vision helper once Track A's OCR source is present. The full demo
-path and its remaining acceptance checks are in [TASKS.md](TASKS.md).
+`npm run build:ocr` needs Apple's Command Line Tools (`swiftc`). It builds the Vision helper used to
+find the task tab during guided return. Captured pixels pass to the helper in memory. If OCR is unavailable
+or the tab is hidden, Nudge shows its title with a **Take me there** button instead.
+
+During a check-in, **Take me back** selects the locked tab in Safari, Chrome, Arc, Brave, or Edge;
+other document apps are activated. Arrival is confirmed by window polling. **This is for my task** saves
+the current page (including its query, so allowing one video does not allow every video) or non-browser
+app in `state.json` under Electron's Nudge user-data directory. These allowances survive restarts.
+Nudge also saves the locked browser tab's full URL at lock and refreshes it every 10 seconds while
+monitoring, including when that tab is in the background. **Take me back** and **Take me there** reuse
+an existing matching tab or reopen the saved address if it was closed. Only a matching task URL can
+update this checkpoint; unrelated pages cannot replace it. Pause suspends URL checks, and End removes
+the checkpoint. This recovers a closed tab during the current session; it does not restore ended sessions.
+The full demo path and its remaining acceptance checks are in [TASKS.md](TASKS.md).

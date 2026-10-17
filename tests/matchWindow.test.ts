@@ -33,6 +33,7 @@ describe('task window matching', () => {
     expect(matchesAllowList(browser('https://example.com/research/sources'), entries)).toBe(true)
     expect(matchesAllowList(browser('https://example.com.evil.test/research'), entries)).toBe(false)
     expect(matchesAllowList(browser('https://example.com/other'), entries)).toBe(false)
+    expect(matchesAllowList(browser('https://example.com/researchers'), entries)).toBe(false)
     expect(matchesAllowList(browser(), entries)).toBe(false)
     expect(matchesAllowList(browser(), [{ kind: 'bundle', value: 'com.apple.Safari' }])).toBe(true)
   })

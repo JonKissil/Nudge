@@ -2,6 +2,7 @@ import { DEFAULTS } from '../../shared/config'
 import type { RuleVerdict, SessionState, Status, WindowInfo } from '../../shared/types'
 import { checkTurn, nudgeTurn, returnedTurn, sessionStartTurn, snoozeOverTurn } from '../gemini/prompts'
 import type { LiveTurn } from '../gemini/types'
+import { refreshedTaskUrl } from './taskUrl'
 
 export interface StudyConfig {
   graceMs: number
@@ -41,6 +42,7 @@ export type StudyEvent =
   | { type: 'WINDOW_OBSERVED'; window: WindowInfo; verdict: RuleVerdict; matchesTask: boolean }
   | { type: 'MODEL_STATUS'; status: Status }
   | { type: 'CHECK_FAILED' }
+  | { type: 'TASK_URL_UPDATED'; url: string }
   | { type: 'TICK' }
   | { type: 'NUDGE_SENT' }
   | { type: 'USER_SPEECH' }
@@ -96,6 +98,12 @@ function snooze(state: StudyState, now: number, durationMs: number): StudyResult
 }
 
 export function reduce(state: StudyState, event: StudyEvent, now: number): StudyResult {
+  if (event.type === 'TASK_URL_UPDATED') {
+    const url = state.taskWindow && refreshedTaskUrl(state.taskWindow, event.url)
+    return url && state.taskWindow && state.taskWindow.url !== url
+      && ['FOCUSED', 'DRIFTING', 'SNOOZED', 'REENTRY'].includes(state.phase)
+      ? result({ ...state, taskWindow: { ...state.taskWindow, url } }) : result(state)
+  }
   if (event.type === 'SET_CONFIG') return result({ ...state, config: event.config })
   if (event.type === 'END' && state.phase !== 'ENDED') {
     return result({ ...state, phase: 'ENDED', checkPending: false }, [
@@ -122,12 +130,15 @@ export function reduce(state: StudyState, event: StudyEvent, now: number): Study
     return result({ ...state, phase: 'FOCUSED' }, [{ type: 'START_CAPTURE' }])
   }
   if (event.type === 'WINDOW_OBSERVED') {
+    if (event.verdict === 'ignore') return result(state)
     if ((state.phase === 'CHECKIN' || state.phase === 'RETURNING') && event.matchesTask) {
       return enterReentry({ ...state, currentWindow: event.window }, now)
     }
-    if (state.phase !== 'FOCUSED' && state.phase !== 'DRIFTING') return result(state)
+    if (state.phase !== 'FOCUSED' && state.phase !== 'DRIFTING') {
+      return ['CHECKIN', 'RETURNING', 'SNOOZED'].includes(state.phase)
+        ? result({ ...state, currentWindow: event.window }) : result(state)
+    }
     const current = { ...state, currentWindow: event.window }
-    if (event.verdict === 'ignore') return result(current)
     if (event.verdict === 'on') {
       return result({ ...current, phase: 'FOCUSED', driftSince: undefined, checkPending: false })
     }
@@ -190,11 +201,12 @@ export function reduce(state: StudyState, event: StudyEvent, now: number): Study
   if (event.type === 'USER_SPEECH' && state.phase === 'CHECKIN') {
     return result({ ...state, checkinLastHeardAt: now })
   }
-  if (event.type === 'RETURN_REQUEST' && state.phase === 'CHECKIN') {
+  if (event.type === 'RETURN_REQUEST' && (state.phase === 'CHECKIN'
+    || (state.phase === 'RETURNING' && state.returnMode === 'guided' && event.mode === 'focused'))) {
     return result({
       ...state, phase: 'RETURNING', returnMode: event.mode,
       returnUntil: now + state.config.returnTimeoutMs,
-    }, [{ type: event.mode === 'focused' ? 'FOCUS_TASK' : 'GUIDE_TASK' }])
+    }, [{ type: 'HIDE_NUDGE' }, { type: event.mode === 'focused' ? 'FOCUS_TASK' : 'GUIDE_TASK' }])
   }
   if (event.type === 'RETURN_FAILED' && state.phase === 'RETURNING') {
     return state.returnMode === 'focused'

@@ -19,6 +19,8 @@
 .eyebrow { color: #6c795f; font-size: 9px; font-weight: 650; letter-spacing: 1.4px; }
 .nudge p { font-size: 17px; line-height: 1.55; letter-spacing: -.2px; margin: 12px 0 18px; overflow-wrap: anywhere; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.guidance { position: absolute; top: 128px; left: 50%; transform: translateX(-50%); width: min(360px, calc(100% - 48px)); padding: 22px; background: #fffefa; border: 1px solid #dce2d6; border-radius: 18px; box-shadow: 0 8px 32px #142d2420; }
+.guidance p { font-size: 17px; line-height: 1.5; overflow-wrap: anywhere; }
 .actions .button { display: flex; align-items: center; justify-content: space-between; flex-basis: 100%; }
 .arrow { position: absolute; width: 44px; height: 44px; color: #456b43; animation: point 1.8s ease-in-out infinite; }
 .arrow svg { display: block; filter: drop-shadow(0 1px 2px #fff); }

@@ -32,6 +32,13 @@ export function matchesAllowList(window: WindowInfo, entries: readonly AllowList
   return entries.some((entry) => {
     if (entry.kind === 'bundle') return Boolean(window.bundleId && window.bundleId === entry.value)
     const current = webUrl(window.url), prefix = webUrl(entry.value)
-    return Boolean(current && prefix && current.origin === prefix.origin && current.href.startsWith(prefix.href))
+    if (!current || !prefix || current.origin !== prefix.origin) return false
+    current.hash = ''
+    prefix.hash = ''
+    if (!current.href.startsWith(prefix.href)) return false
+    const rest = current.href.slice(prefix.href.length)
+    // Preserve URL-prefix entries while keeping one video from allowing a different video ID.
+    return !rest || (prefix.search ? rest.startsWith('&')
+      : prefix.pathname.endsWith('/') || /^[/?#]/u.test(rest))
   })
 }

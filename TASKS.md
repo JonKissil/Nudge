@@ -16,8 +16,9 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 
 **Status — 2026-10-17:** M2 and integration checkpoint 1 are verified. M1's Safari interaction check is
 confirmed; capture exclusion is still open. M3/M4 implementation is integrated and tested, with the real
-15-minute reconnect and full drift-demo checks still open. Real focus/guide/allow actions and OCR remain
-the main implementation gaps. M7 has several completed components; M8 has a draft deck and script.
+15-minute reconnect and full drift-demo checks still open. M5 focus/guide/allow and closed-tab recovery
+are implemented and Safari-tested; document OCR remains the main implementation gap. M7 has several
+completed components; M8 has a draft deck and script.
 
 ---
 
@@ -94,25 +95,27 @@ the main implementation gaps. M7 has several completed components; M8 has a draf
 
 ## M5 — Getting back (A: focus/guide; B: tool + prompt wiring, H12–H16)
 
-- [ ] `os/focus.ts`: Chrome tab AppleScript (escaped), Safari variant, generic `activate`; returns `ok`/`not_found`
-- [ ] `focus_task_window` → `RETURNING` → arrival detected by the poller → `REENTRY`
-- [ ] `guide_to_task`: OCR the tab strip for the task title → `Arrow`; fallback card with a *Take me there* button
+- [x] `os/focus.ts`: Chrome tab AppleScript (escaped), Safari variant, generic `activate`; returns `ok`/`not_found` (script unit tests; actual Safari switching)
+- [x] `focus_task_window` → `RETURNING` → arrival detected by the poller → `REENTRY` (Safari runtime checks, 500ms return polling)
+- [x] `guide_to_task`: OCR the tab strip for the task title → `Arrow`; fallback card with a *Take me there* button (actual Safari OCR, arrival and missing-tab fallback verified)
 - [x] `RETURNING` timeout → `DRIFTING`; self-return during `CHECKIN` → `REENTRY` (reducer/FakeLiveClient tests)
 - [x] `snooze` tool/button routing and timer transitions (tests; real silence → snooze recorded)
-- [ ] `allow_current_window` end to end with persisted allow-list in `store.ts`
-- Main currently supplies no real focus/guide/OCR/allow action ports. Return requests fail truthfully;
-  successful focus, guidance, arrival, and persistence acceptance remain open despite tested reducer paths.
+- [x] `allow_current_window` end to end with persisted allow-list in `store.ts` (tool tests, actual overlay action and saved-page classification after a full Electron restart)
+- [x] Requested follow-up: checkpoint the locked task URL every 10s; reuse an open tab or reopen a closed tab on an explicit return request (background Safari URL update, closed-tab recovery through both return controls, no duplicate, and End cleanup verified)
+- [ ] Repeat return/guide/allow with spoken requests in a real Live check-in; Chrome has script tests but no native acceptance run
+- Main now supplies focus, tab-strip OCR guidance, and persisted allow actions. Safari acceptance uses
+  scripted model tool calls with the real OS, capture, IPC, overlay, and poller. Document OCR/line anchoring remains M6.
 - **Accept:** "take me back" switches to the doc tab in under ~1s from three different distracting tabs; "show me" draws an arrow on the correct tab.
 
 ## M6 — Re-entry note (A: OCR; B: prompt, H14–H18)
 
-- [ ] `native/ocr-helper/main.swift` + `scripts/build-ocr.sh` (Vision, normalized top-left boxes, JSON out)
+- [x] `native/ocr-helper/main.swift` + `scripts/build-ocr.sh` (built for M5 tab guidance; Vision, normalized top-left boxes, JSON out; stdin avoids frame files)
 - [ ] `ocr/lines.ts` + tests (bounds filter, grouping, L-numbering, 60-line cap)
 - [ ] `REENTRY`: full frame → OCR → `[USER_RETURNED]` + `[DOC_LINES]` → `pin_next_step` → `StickyNote` at the line; fallbacks per AGENTS.md §11 and §16
 - [ ] tesseract.js fallback when the helper binary is missing
 - [x] `pin_next_step` → three-minute dismissible overlay note with margin fallback (FakeLiveClient and note/preview tests)
-- The Swift source, OCR line grouping, and actual document-line lookup are absent. Full-frame capture is
-  ready, but the full OCR-to-anchored-note path above remains open.
+- The Swift helper and full-frame capture are ready. Document-region OCR, line grouping, and actual
+  document-line lookup remain open, along with the full OCR-to-anchored-note path above.
 - **Accept:** after returning, a note appears beside the last written line within ~3s, phrased as a question/prompt (not text to copy).
 
 ## ⇄ Integration checkpoint 2 (H18): full demo path
@@ -346,3 +349,46 @@ the main implementation gaps. M7 has several completed components; M8 has a draf
   instructions and browser-neutral Automation copy. The original running instance was left open.
   Added four permission-presentation tests; all 69 tests, typecheck/build, lint, and diff checks passed.
   The separate `npm run dev` instance also passed the three-window/HUD launch smoke check and was closed.
+- 2026-10-17 — M5 implemented: main now executes escaped, case-sensitive Safari/Chrome tab selection,
+  activates document apps, and confirms arrival through the native poller (500ms while returning).
+  Focus failure returns an honest failure and offers guidance without automatically repeating focus.
+  Added the planned Swift/Vision helper early for tab-strip guidance, with in-memory PNG input and
+  normalized top-left output. OCR matches the first 20 title characters conservatively; missing or
+  ambiguous titles show a centered title card with a working Take me there button. Guidance clears
+  on arrival, timeout, pause, or end, and cancelled OCR cannot restore stale UI. Full-frame requests
+  now wait briefly for a fresh captured frame so guidance does not use the previous tab's pixels.
+- 2026-10-17 — M5 allow-list: current browser pages retain their query parameters, so allowing one video
+  does not allow another video or a lookalike URL. Other apps are stored by bundle ID. Validated JSON
+  writes are serialized and atomic in Nudge's user-data `state.json`; failures leave the check-in open.
+  Check-in observations now keep the useful current window fresh, and the real allow action reads it
+  again before saving and immediately recomputes its rule verdict. A save completing after End cannot
+  resume the session. No new dependencies were added.
+- 2026-10-17 — M5 acceptance used Safari with local test pages and scripted model replies, exercising
+  real AppleScript, screen capture, OCR, IPC, overlay buttons, and native arrival detection. Returns from
+  three distracting tabs took 373ms, 356ms, and 449ms including verification (two model tool calls and
+  one overlay button). The OCR arrow pointed inside the first tab at approximately (13.5%, 11.1%);
+  selecting the tab outside Nudge triggered re-entry and removed it. An absent task URL produced a failed focus
+  response and the fallback card; restoring the tab and clicking Take me there returned successfully.
+  This is for my task saved the active page, immediately classified it on-task, and a new Electron
+  process loaded that allowance and kept it on-task. Temporary Safari windows and the test allowance
+  were cleaned up. No captured frame/audio payloads were logged or persisted. Real spoken Live
+  return/guide/allow acceptance and native Chrome acceptance remain unverified; document OCR and
+  anchored notes remain M6.
+- 2026-10-17 — M5 checks passed: Swift helper build, typecheck, all 81 tests, lint, production build,
+  and diff checks. The final `npm run dev` smoke check verified three renderers, the control form/HUD,
+  isolated APIs, native polling, and capture off before locking; its test instance was closed.
+- 2026-10-17 — Requested M5 follow-up: save the full locked browser URL immediately, then read matching
+  tabs every 10 seconds during monitoring, including background tabs. Query/fragment changes and Docs
+  view changes update the in-memory target and one validated local JSON checkpoint; unchanged URLs
+  avoid repeat disk writes. Unrelated pages cannot overwrite the task. Window and task-URL reads share
+  the serial native-read queue; Pause suspends URL reads, End clears the checkpoint, and stale reads
+  from an ended/replaced task cannot restore it. Explicit returns search existing tabs first and reopen
+  the saved HTTP(S) URL only when no match exists, within one AppleScript action without automatic retries.
+- 2026-10-17 — Closed-tab recovery verified in Safari with local pages and scripted model replies:
+  the initial URL was saved at lock, a background tab's changed query/fragment was checkpointed without
+  stealing focus, and Take me back reopened exactly one tab at that updated URL. A subsequent return
+  reused the existing tab without duplication. The title-card Take me there button also reopened a
+  closed task tab, native polling confirmed re-entry, and End removed the checkpoint. Temporary test
+  windows were closed and the original saved state restored. Added URL validation/compatibility,
+  refresh timing, failure recovery, stale-read cancellation, and reducer tests. Typecheck, all 90 tests,
+  lint, production build, diff checks, and the final three-window dev-launch smoke check passed.
