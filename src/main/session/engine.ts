@@ -54,6 +54,7 @@ export function createStudyToolHandlers(engine: StudyEngine): ToolHandlers {
     reportStatus: (status) => engine.state.checkPending
       ? engine.dispatch({ type: 'MODEL_STATUS', status })
       : Promise.resolve({ ok: false, error: 'No screen check is pending.' }),
+    reportStatusFailed: async () => { await engine.dispatch({ type: 'CHECK_FAILED' }) },
     focusTaskWindow: () => only('CHECKIN', { type: 'RETURN_REQUEST', mode: 'focused' }),
     guideToTask: () => only('CHECKIN', { type: 'RETURN_REQUEST', mode: 'guided' }),
     pinNextStep: ({ text, line_id }) => only('REENTRY', { type: 'PIN_STEP', text, lineId: line_id }),

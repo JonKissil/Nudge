@@ -2,6 +2,8 @@
 
 Spec: `AGENTS.md`. Agents: pick the first unchecked task in your lane. Check a box only after its acceptance
 criteria pass on the demo Mac. Log blockers and decisions at the bottom.
+Implementation/test results and remaining manual acceptance checks are listed separately where needed;
+a milestone remains open until its **Accept** criteria pass.
 
 **Lanes**
 - **A — Desktop & perception:** Electron shell, overlay, active window, capture, rules, OS focus, OCR.
@@ -12,6 +14,11 @@ with fakes (`FakeLiveClient`; fixed frames and fake window events) until the int
 
 Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 
+**Status — 2026-10-17:** M2 and integration checkpoint 1 are verified. M1's Safari interaction check is
+confirmed; capture exclusion is still open. M3/M4 implementation is integrated and tested, with the real
+15-minute reconnect and full drift-demo checks still open. Real focus/guide/allow actions and OCR remain
+the main implementation gaps. M7 has several completed components; M8 has a draft deck and script.
+
 ---
 
 ## M0 — Scaffold (both, H0–H2)
@@ -20,7 +27,10 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 - [x] Three renderers (`media` hidden, `overlay`, `control`) + typed preload per window
 - [x] `src/shared/{types,ipc,config}.ts` with zod schemas from AGENTS.md §13 and DEFAULTS/DEMO from §7.3
 - [x] `.env.example`, `.gitignore` (`.env`, `resources/bin/*`), README with setup steps
-- [ ] **Grant macOS permissions on the demo laptop now** (Screen Recording, Mic, Automation) and restart
+- [ ] **Grant macOS permissions on the demo laptop now** (Screen Recording, Mic, Automation) and restart.
+  Screen Recording, Accessibility, and Safari URL access passed the live checkpoint. Microphone and
+  spoken interaction passed in a Terminal-launched run. Recheck the final demo launch context and
+  Automation for actual focus actions; microphone status varies with the launching application.
 - **Accept:** `npm run dev` opens the control window; `npm run typecheck && npm test` pass on an empty test.
 
 ## M1 — Overlay (A, H2–H5)
@@ -28,48 +38,58 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 - [x] Transparent, click-through, always-on-top overlay over the full primary display; full-screen visibility configured
 - [x] Hover-to-interact toggling for buttons
 - [x] `setContentProtection(true)` enabled
-- [ ] **Verify the overlay is absent from captured frames** on the demo Mac (Screen Recording currently denied; see log)
+- [ ] **Verify the overlay is absent from captured frames** on the demo Mac (Screen Recording is now granted
+  in the verified launch context; exclusion remains unverified, so the model prompt ignores Nudge's UI)
 - [x] Components: `Pill`, `NudgeCard`, `Arrow`, `StickyNote`, `Captions`, driven only by `overlay:state`
 - [x] Normalized (0–1) coordinates; reduced-motion support
-- [ ] Manual demo-Mac check: overlay visible over full-screen Chrome; physical clicks pass through outside buttons
+- [x] Manual full-screen Safari check, as requested: overlay visible; physical clicks pass through outside
+  buttons; Pause/Resume buttons work (student confirmed on 2026-10-16)
 - **Accept:** a dev button in the control window cycles through every overlay component; clicks pass through
   everywhere except on buttons.
 
 ## M2 — Perception (A, H3–H8)
 
-- [ ] `os/activeWindow.ts`: 1s poll via `get-windows` (external, dynamic import), emits change events with `{app, bundleId, title, url, bounds}`
-- [ ] `drift/matchWindow.ts` + tests (Google Docs id, URL prefix, bundle+title)
-- [ ] `drift/rules.ts` + tests (`on`/`off`/`ask`/`ignore`)
-- [ ] Media window: `setDisplayMediaRequestHandler` + `getDisplayMedia`; frame diff (helper + tests); ≤1 fps JPEG at 1280w → `frame` IPC
-- [ ] Full-resolution frame on request (`frame:request-full`)
-- [ ] Control window: "Lock task window" 3-second countdown → stores the task window
-- **Accept:** the HUD shows the live active window, the rule verdict, and frames/min (~0 when idle, rising when scrolling).
+- [x] `os/activeWindow.ts`: 1s poll via `get-windows` (external, dynamic import), emits change events with `{app, bundleId, title, url, bounds}`
+- [x] `drift/matchWindow.ts` + tests (Google Docs id, URL prefix, bundle+title)
+- [x] `drift/rules.ts` + tests (`on`/`off`/`ask`/`ignore`)
+- [x] Media window: `setDisplayMediaRequestHandler` + `getDisplayMedia`; frame diff (helper + tests); ≤1 fps JPEG at 1280w → `frame` IPC
+- [x] Full-resolution frame on request (`frame:request-full`)
+- [x] Control window: "Lock task window" 3-second countdown → stores the task window
+- **Accept — passed with Safari:** the HUD shows the live active window, the rule verdict, and frames/min
+  (required idle keyframes every 5s, about 12/min once settled; rising when scrolling). Native PNG, pause,
+  resume, end, and countdown cancellation passed; see the M2 and checkpoint 1 logs.
 
 ## M3 — Live session (B, H2–H8)
 
-- [ ] `LiveClient` interface + `FakeLiveClient` (scripted tool calls/audio events)
-- [ ] `liveClient.ts`: connect with the AGENTS.md §6.2 config; verify every field against the current docs
-- [ ] Stream `frame` IPC → `sendRealtimeInput` video; turn queue that never sends `turnComplete:true` while the model is speaking
-- [ ] Resumption handle storage, GoAway → reconnect, backoff, `[CONTEXT_RESTORE]` fallback (AGENTS.md §6.3)
-- [ ] `prompts.ts` system instruction + turn templates (§6.4, §6.6)
-- [ ] `tools.ts`: declarations (NON_BLOCKING), zod arg schemas, handlers that emit state-machine events, correct response scheduling (check the Tool use docs)
-- [ ] Media window audio: mic worklet → 16 kHz PCM chunks (gated by `mic:set`); 24 kHz playback queue; flush on `interrupted`
-- [ ] Output transcription → `Captions`
+- [x] `LiveClient` interface + `FakeLiveClient` (scripted tool calls/audio events)
+- [x] `liveClient.ts`: connect with the AGENTS.md §6.2 config; fields checked against current docs and a real connection verified
+- [x] Stream `frame` IPC → `sendRealtimeInput` video; turn queue prevents complete turns during model speech (real frame flow + transport tests)
+- [x] Resumption handle storage and GoAway → resume with buffered media/turns (real handle received; resume path tested with mocked transport)
+- [ ] Verify unexpected-close backoff, failed resumption → `[CONTEXT_RESTORE]`, and exhausted-retry fallback
+  (implemented; failure-path/live acceptance remains open)
+- [x] `prompts.ts` system instruction + turn templates (§6.4, §6.6)
+- [x] `tools.ts`: NON_BLOCKING declarations, zod validation, state-machine handlers, and response scheduling (SILENT verified live)
+- [x] Media window audio: gated 16 kHz mic worklet and 24 kHz playback; interruption flush routed (Terminal voice check + bridge tests)
+- [x] Output transcription → `Captions` (bridge tests, overlay preview, and real output transcription)
+- [x] Manual voice check: heard `[SESSION_START]`, used ⌘⇧Space, and heard the correct task answer (TextEdit, Terminal launch; 2026-10-17)
+- [ ] Run a real 15-minute session and verify at least one reconnect in the HUD
 - **Accept:** start a session → hear the `[SESSION_START]` greeting; push-to-talk "what am I working on?" gets a
   correct one-sentence answer; a 15-minute session survives at least one reconnect (check the HUD).
 
 ## ⇄ Integration checkpoint 1 (H8)
 
-- [ ] Real frames + real window events flow into the real Live session; the HUD shows `report_status` results from `[CHECK]` ticks
-- [ ] Confirm the model stays silent on `[CHECK]`. If it's chatty: tighten the prompt → verify SILENT scheduling →
+- [x] Real frames + real window events flow into the real Live session; the HUD shows `report_status` results from `[CHECK]` ticks
+- [x] Confirm the model stays silent on `[CHECK]`. If it's chatty: tighten the prompt → verify SILENT scheduling →
   last resort, move classification to a separate non-Live Flash call with structured output (log the decision)
 
 ## M4 — Drift loop (B owns the state machine, A wires timers, H8–H12)
 
-- [ ] `session/stateMachine.ts`: pure reducer for all states in AGENTS.md §7.2 + full test suite with an injected clock
-- [ ] `effects.ts` + `session.ts`: ticks (every `tickMs` and on window change, only when rules say `ask`), grace timer, nudge rate limit
-- [ ] `[NUDGE]` → nudge card + mic opens → `CHECKIN`; silence timeout → silent snooze
-- [ ] Overlay buttons dispatch the same events as tools (works with voice off)
+- [x] `session/stateMachine.ts`: pure reducer with injected-clock tests for state transitions, grace/rate limits, silence, return timeout, and failed-check recovery
+- [x] `effects.ts` + `session.ts`: classification ticks, window-change observations, grace timer, and nudge rate limit (tests + real CHECK flow)
+- [x] `[NUDGE]` → card/mic effects → `CHECKIN`; silence → snooze (FakeLiveClient tests; real state transitions recorded)
+- [x] Overlay buttons dispatch through the same engine as tools (routing/tests complete; real return/allow actions depend on M5)
+- [ ] Manual DEMO_MODE acceptance: verify 5+ minutes of on-task silence, the ~15s YouTube nudge's voice/card,
+  and allowing that video through “This is for my task”
 - **Accept (DEMO_MODE):** on-task stays silent for 5+ minutes; YouTube music triggers a nudge after ~15s; "this is for my task" stops nudges for that video.
 
 ## M5 — Getting back (A: focus/guide; B: tool + prompt wiring, H12–H16)
@@ -77,8 +97,11 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 - [ ] `os/focus.ts`: Chrome tab AppleScript (escaped), Safari variant, generic `activate`; returns `ok`/`not_found`
 - [ ] `focus_task_window` → `RETURNING` → arrival detected by the poller → `REENTRY`
 - [ ] `guide_to_task`: OCR the tab strip for the task title → `Arrow`; fallback card with a *Take me there* button
-- [ ] `RETURNING` timeout → `DRIFTING`; student returning on their own during `CHECKIN` → `REENTRY`
-- [ ] `snooze`, `allow_current_window` end to end (allow-list persisted in `store.ts`)
+- [x] `RETURNING` timeout → `DRIFTING`; self-return during `CHECKIN` → `REENTRY` (reducer/FakeLiveClient tests)
+- [x] `snooze` tool/button routing and timer transitions (tests; real silence → snooze recorded)
+- [ ] `allow_current_window` end to end with persisted allow-list in `store.ts`
+- Main currently supplies no real focus/guide/OCR/allow action ports. Return requests fail truthfully;
+  successful focus, guidance, arrival, and persistence acceptance remain open despite tested reducer paths.
 - **Accept:** "take me back" switches to the doc tab in under ~1s from three different distracting tabs; "show me" draws an arrow on the correct tab.
 
 ## M6 — Re-entry note (A: OCR; B: prompt, H14–H18)
@@ -87,6 +110,9 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 - [ ] `ocr/lines.ts` + tests (bounds filter, grouping, L-numbering, 60-line cap)
 - [ ] `REENTRY`: full frame → OCR → `[USER_RETURNED]` + `[DOC_LINES]` → `pin_next_step` → `StickyNote` at the line; fallbacks per AGENTS.md §11 and §16
 - [ ] tesseract.js fallback when the helper binary is missing
+- [x] `pin_next_step` → three-minute dismissible overlay note with margin fallback (FakeLiveClient and note/preview tests)
+- The Swift source, OCR line grouping, and actual document-line lookup are absent. Full-frame capture is
+  ready, but the full OCR-to-anchored-note path above remains open.
 - **Accept:** after returning, a note appears beside the last written line within ~3s, phrased as a question/prompt (not text to copy).
 
 ## ⇄ Integration checkpoint 2 (H18): full demo path
@@ -95,20 +121,22 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
 
 ## M7 — Demo hardening (both, H18–H24)
 
-- [ ] Demo mode: DEMO params, pre-filled task, HUD on (`DEMO_MODE=1` + toggle)
-- [ ] Degraded mode (Live unreachable → rules-only + chime + card); test with wifi off
-- [ ] Permission checklist screen in the control window
+- [x] Demo-mode implementation: DEMO params, pre-filled task, HUD, environment flag, and control toggle (configuration tests/UI wiring)
+- [x] Degraded-mode implementation: rules-only judgment, offline pill, chime, and card (rule tests; media/overlay wiring)
+- [ ] Manual wifi-off acceptance, including usable controls once M5 actions are connected
+- [x] Permission checklist, System Settings links, native mic request, and local three-second mic probe (UI/recorded mic verification)
 - [ ] `scripts/demo-reset.sh`
-- [ ] Hotkeys: ⌘⇧Space, ⌘⇧P, ⌘⇧D
+- [x] Hotkeys registered: ⌘⇧Space, ⌘⇧P, ⌘⇧D; push-to-talk manually verified
 - [ ] Polish: pill states, note styling, caption timing, a calm voice choice
 - [ ] Record a backup demo video of the full path
 - **Accept:** AGENTS.md §19 steps 1–9 all pass on the demo laptop.
 
 ## M8 — Pitch (B, in parallel from H16)
 
-- [ ] 3-minute demo script (below) rehearsed 5+ times on the demo laptop
-- [ ] Slides: problem (blockers punish leaving; coming back is the hard part) → live demo → how it works (live vision + deterministic timing) → accessibility principles → what's next
-- [ ] One-line answers ready for: cost per hour, why not a blocker, what happens offline, privacy roadmap
+- [x] Three-minute script drafted in `pitch/demo-script.md`
+- [ ] Script rehearsed 5+ times on the demo laptop
+- [x] Six-slide deck drafted in `pitch/output/nudge-pitch.pptx` (layout/package and visual checks recorded in log)
+- [x] One-line answers drafted in the script for cost, blockers, offline behavior, and privacy roadmap; measured hourly cost remains unverified
 
 ## Stretch (only after M7 passes)
 
@@ -279,3 +307,30 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
   `The task window could not be opened`, consistent with Track A's focus action still unwired. The study
   session ended at 12:54:14 AM after about ten minutes; the connection log contained no server reconnect.
   The 15-minute M3 gate and M4 nudge voice/card acceptance remain open pending the student's report.
+- 2026-10-17 — Integration checkpoint 1 verified using Safari and local history-essay/research pages.
+  The actual three-second lock selected Safari and its essay URL; navigating to the research URL produced
+  a real `ask` window observation. One real Gemini connection received seven screen frames and completed
+  three `[CHECK]` turns, each returning an accepted `report_status` response with `SILENT` scheduling.
+  The real status rendered in the control HUD. All three checks emitted zero audio chunks and zero
+  output-transcription characters; the greeting emitted 17 audio chunks, confirming audio was available.
+  The microphone stayed closed, and the test session was ended. Only diagnostic counts and validation
+  metadata were collected; no frame or audio payloads were logged or saved. This short checkpoint does
+  not verify M3's 15-minute/reconnect gate or integration checkpoint 2.
+- 2026-10-17 — Checkpoint fixes: simultaneous native window probes stalled while individual probes
+  succeeded, so polling and countdown locking now share a serial read queue with a fresh read per request.
+  A real model status used nine activity words and was correctly rejected, but left `checkPending` set;
+  failed status handling now releases that pending check without changing the verdict or drift timer,
+  allowing the next scheduled check. Reinforced the eight-word activity limit in the prompt. Added
+  regression coverage for read ordering/failure recovery and invalid-status retry. Typecheck, 65 tests,
+  lint, and production build pass. Restored the existing declared dependencies with `npm install` after
+  finding `@google/genai` missing from the local install; package files were unchanged.
+  `npm run dev` also launched all three renderers; the rendered HUD, isolated APIs, native polling,
+  and capture-off-before-lock behavior passed the final smoke check. `git diff --check` passed.
+- 2026-10-17 — Tracker reconciliation: restored the verified M2 checkmarks, recorded the student's
+  full-screen Safari/click-through confirmation, and updated completed Live, drift-engine, note-fallback,
+  demo/permissions/hotkey, and pitch work from the source, tests, and verification log. Separated
+  implementation results from outstanding manual/failure-path acceptance. Capture exclusion, final
+  launch-context permissions, the 15-minute reconnect, real focus/guide/allow actions, OCR, wifi-off,
+  full demo passes, backup video, and rehearsals remain open. Historical permission-denial entries above
+  describe earlier launch contexts; they are not the latest observed Screen Recording status.
+  This documentation update passed typecheck, all 65 tests, the dev-launch smoke check, and diff checks.

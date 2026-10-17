@@ -40,6 +40,7 @@ export type StudyEvent =
   | { type: 'LOCK_WINDOW'; window: WindowInfo }
   | { type: 'WINDOW_OBSERVED'; window: WindowInfo; verdict: RuleVerdict; matchesTask: boolean }
   | { type: 'MODEL_STATUS'; status: Status }
+  | { type: 'CHECK_FAILED' }
   | { type: 'TICK' }
   | { type: 'NUDGE_SENT' }
   | { type: 'USER_SPEECH' }
@@ -135,6 +136,9 @@ export function reduce(state: StudyState, event: StudyEvent, now: number): Study
     }
     if (state.checkPending) return result(current)
     return result({ ...current, checkPending: true }, [{ type: 'SEND_TURN', turn: checkTurn(event.window, state.task) }])
+  }
+  if (event.type === 'CHECK_FAILED' && state.checkPending && (state.phase === 'FOCUSED' || state.phase === 'DRIFTING')) {
+    return result({ ...state, checkPending: false })
   }
   if (event.type === 'MODEL_STATUS' && state.checkPending && (state.phase === 'FOCUSED' || state.phase === 'DRIFTING')) {
     const offTask = !event.status.on_task && event.status.confidence >= state.config.offTaskConfidence
