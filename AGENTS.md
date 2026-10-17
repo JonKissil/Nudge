@@ -81,7 +81,8 @@ Generality (Windows, other browsers, multi-monitor) comes later and is out of sc
 - **The app owns time.** Grace periods, snoozes, and nudge rate limits are deterministic code, never model judgment.
 - **Deterministic first, model second.** Window rules settle the easy cases; the model only judges ambiguous screens.
 - **The Live session runs in main (Node)**, not the renderer, so the API key never reaches a renderer and we can set
-  `apiVersion: 'v1beta'` (needed for proactive audio) without ephemeral-token constraints.
+  `apiVersion: 'v1beta'` without ephemeral-token constraints. Proactive audio is permanently enabled on
+  `gemini-3.8-live` (per the current model page); do not set `proactiveAudio: false`.
 
 ---
 
@@ -197,7 +198,7 @@ const config = {
   mediaResolution: MediaResolution.MEDIA_RESOLUTION_LOW, // raise to MEDIUM only if it can't read the doc
   contextWindowCompression: { slidingWindow: {} },       // REQUIRED: audio+video sessions die at 2 min without it
   sessionResumption: { handle: lastHandle ?? undefined },
-  proactivity: { proactiveAudio: true },                 // lets the model choose not to respond; verify on 3.8
+  // No proactivity field: gemini-3.8-live enables proactive audio by default.
   inputAudioTranscription: {},
   outputAudioTranscription: {},
   speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
@@ -258,8 +259,9 @@ On invalid arguments, reply `{ ok: false, error }`. Never throw. Always send a t
 | `end_checkin` | — | Close the mic. | SILENT |
 | `set_task` | `task: string`, `minutes: int` | Optional voice-driven setup. | WHEN_IDLE |
 
-> Scheduling values (`SILENT` / `WHEN_IDLE` / `INTERRUPT…`) and where they go in the `FunctionResponse` must be
-> checked against the Live API **Tool use** page before implementing. Spelling has varied between docs pages.
+> The current API reference and `@google/genai` 2.30.0 place `scheduling` at the top level of
+> `FunctionResponse` (`{ id, name, response, scheduling }`). The Live API Tool use example still shows it inside
+> `response`; use the API reference/SDK shape. `SILENT` and `WHEN_IDLE` are the values used here.
 
 Tool responses tell the truth, e.g. `{ ok: true }`, `{ ok: false, error: "Chrome tab not found" }`, or
 `{ ok: true, arrived: true }`. The model is instructed never to claim success without `ok: true`.

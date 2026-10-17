@@ -182,3 +182,26 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
   can include protected windows; AGENTS.md §9 now records this limitation and the prompt fallback for M3.
   After granting Screen Recording and restarting, verify capture exclusion, full-screen Chrome visibility,
   and physical click-through on the demo laptop before marking the remaining M1 checks complete.
+- 2026-10-16 — B / M3 progress: Added the LiveClient contract and scriptable FakeLiveClient, Gemini Live
+  transport with tagged-turn queue, frame/audio input, tool responses, resumption and reconnect paths,
+  prompt templates, tool declarations with zod validation, and media-window mic/playback. Installed
+  `@google/genai` 2.30.0, the SDK specified in AGENTS.md §3 (dependency justification: the Live API
+  integration needs Google's supported JavaScript client). The current model docs say proactive audio is
+  already enabled; the API reference and SDK place response scheduling on FunctionResponse. Updated
+  AGENTS.md §6 accordingly. Typecheck, 14 tests, lint, production build, and dev startup passed on this
+  development Mac. M3 stays unchecked pending main-process session wiring, real API/audio checks, and
+  15-minute reconnect verification on the demo Mac; M0 permissions remain unchecked.
+- 2026-10-16 — B / M3 follow-up: A local `.env` key was added (`.gitignore` covers it; owner-only file permissions).
+  A direct `gemini-3.8-live` setup succeeded; a short greeting turn returned audio and output transcription.
+  Added the main-process Live bridge for validated frame/mic IPC, audio playback, captions, connection state,
+  tool responses, and a hook for M2's task-window lock. Implemented the pure M4 session reducer with injected
+  time and transition tests. Typecheck, 23 tests, lint, production build, and desktop startup passed on this
+  development Mac. M3/M4 acceptance remains open until Track A's window lock/capture and the demo-Mac checks.
+- 2026-10-16 — B / M3–M4 wiring: Connected Live tool calls to the pure session reducer through an effect
+  executor, routed session setup/end and overlay actions through the same engine, added timed state checks,
+  and exposed window-observation/OS-action hooks for Track A. A FakeLiveClient test covers screen judgment →
+  nudge → focus request → arrival → OCR lines → pinned step, including truthful focus failure with guided
+  fallback. Typecheck, 26 tests, lint, production build, and desktop launch passed on this Mac.
+  System Settings shows Nudge/Electron has not yet requested Screen Recording or Microphone access, and no
+  app has requested Automation access. Track A's capture and Chrome-focus paths must trigger those prompts
+  before the permissions can be granted and the demo-Mac acceptance boxes can be checked.

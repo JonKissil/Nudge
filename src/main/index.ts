@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { registerScaffoldIpc } from './session/session'
 import { createWindows, loadWindows } from './windows'
 
+// Model audio comes from a hidden renderer, so it has no click to unlock playback.
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 app.setName('Nudge')
 
 async function bootstrap(): Promise<void> {
