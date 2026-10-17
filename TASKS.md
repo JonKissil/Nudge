@@ -150,10 +150,14 @@ M7 has several completed components; M8 has a draft deck and script.
 
 ## Stretch (only after M7 passes)
 
+- [ ] Language support
+- [ ] Custom theme support from uploaded jpg or png file (also font support)
+- [ ] Several included base themes
 - [ ] Session recap (focused minutes, returns, steps completed; framed as wins)
 - [ ] Ambient "co-working" presence (quiet sounds or a small avatar)
 - [ ] Adaptive grace period from the student's history
 - [ ] Packaged `.app` build (verify `get-windows` and the OCR helper inside the bundle)
+- [ ] Animation support
 
 ## Proposed (agents add here; humans approve)
 
