@@ -55,7 +55,7 @@ describe('GeminiLiveClient transport', () => {
     expect(sdk.config).toMatchObject({
       responseModalities: ['AUDIO'], mediaResolution: 'MEDIA_RESOLUTION_LOW',
       contextWindowCompression: { slidingWindow: {} }, sessionResumption: {},
-      outputAudioTranscription: {},
+      inputAudioTranscription: {}, outputAudioTranscription: {},
     })
     expect(sdk.config).not.toHaveProperty('proactivity')
     client.sendFrame('anBlZw==')
@@ -88,6 +88,33 @@ describe('GeminiLiveClient transport', () => {
     expect(sdk.turns).toHaveLength(1)
     client.setCheckinActive(false)
     expect(sdk.turns).toHaveLength(2)
+    await client.disconnect()
+  })
+
+  it('delivers a queued nudge after a silent screen check while check-in is open', async () => {
+    const client = new GeminiLiveClient('test-key')
+    await client.connect(context)
+    client.sendTurn({ tag: 'CHECK', text: '[CHECK]', turnComplete: true })
+    client.sendTurn({ tag: 'NUDGE', text: '[NUDGE]', turnComplete: true })
+    client.setCheckinActive(true)
+    expect(sdk.turns).toHaveLength(1)
+    sdk.callbacks?.onmessage({ serverContent: { turnComplete: true } })
+    expect(sdk.turns).toEqual([
+      { turns: [{ role: 'user', parts: [{ text: '[CHECK]' }] }], turnComplete: true },
+      { turns: [{ role: 'user', parts: [{ text: '[NUDGE]' }] }], turnComplete: true },
+    ])
+    await client.disconnect()
+  })
+
+  it('reports student speech from Live input transcription without storing the transcript', async () => {
+    const client = new GeminiLiveClient('test-key')
+    const events: unknown[] = []
+    client.onEvent((event) => events.push(event))
+    await client.connect(context)
+    sdk.callbacks?.onmessage({ serverContent: { inputTranscription: { text: 'Take me back.' } } })
+    sdk.callbacks?.onmessage({ serverContent: { inputTranscription: { text: '   ' } } })
+    expect(events).toContainEqual({ type: 'user-transcription', text: 'Take me back.' })
+    expect(events.filter((event) => (event as { type?: string }).type === 'user-transcription')).toHaveLength(1)
     await client.disconnect()
   })
 })

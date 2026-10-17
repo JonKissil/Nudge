@@ -5,6 +5,7 @@ export interface LiveSessionSinks {
   playAudio(pcm24Base64: string): void
   flushAudio(): void
   caption(text: string): void
+  userSpeech(text: string): void
   micSet(open: boolean): void
   connection(state: 'connected' | 'reconnecting' | 'degraded' | 'disconnected'): void
   resumptionHandle(receivedAt: number): void
@@ -71,6 +72,7 @@ export class LiveSessionBridge {
         break
       case 'audio': this.sinks.playAudio(event.pcm24Base64); break
       case 'transcription': this.sinks.caption(event.text); break
+      case 'user-transcription': this.sinks.userSpeech(event.text); break
       case 'interrupted': this.sinks.flushAudio(); this.sinks.caption(''); break
       case 'generation-complete': break
       case 'error': this.sinks.error(event.message); break

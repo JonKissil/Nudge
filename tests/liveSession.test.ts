@@ -28,7 +28,7 @@ describe('LiveSessionBridge', () => {
   it('routes turns, media and captions, and closes audio on stop', async () => {
     const client = new FakeLiveClient()
     const sinks = {
-      playAudio: vi.fn(), flushAudio: vi.fn(), caption: vi.fn(), micSet: vi.fn(),
+      playAudio: vi.fn(), flushAudio: vi.fn(), caption: vi.fn(), userSpeech: vi.fn(), micSet: vi.fn(),
       connection: vi.fn(), resumptionHandle: vi.fn(), error: vi.fn(),
     }
     const bridge = new LiveSessionBridge(client, handlers, sinks)
@@ -45,6 +45,7 @@ describe('LiveSessionBridge', () => {
     client.script([
       { type: 'audio', pcm24Base64: 'cGNt' },
       { type: 'transcription', text: 'Back to the essay.' },
+      { type: 'user-transcription', text: 'Take me back.' },
       { type: 'resumption-handle', receivedAt: 123 },
       { type: 'interrupted' },
     ])
@@ -52,6 +53,7 @@ describe('LiveSessionBridge', () => {
     expect(client.audioChunks).toEqual(['after-open'])
     expect(sinks.playAudio).toHaveBeenCalledWith('cGNt')
     expect(sinks.caption).toHaveBeenCalledWith('Back to the essay.')
+    expect(sinks.userSpeech).toHaveBeenCalledWith('Take me back.')
     expect(sinks.resumptionHandle).toHaveBeenCalledWith(123)
     expect(sinks.flushAudio).toHaveBeenCalledTimes(1)
 
@@ -65,7 +67,7 @@ describe('LiveSessionBridge', () => {
   it('responds to each tool call with its id and silent scheduling', async () => {
     const client = new FakeLiveClient()
     const bridge = new LiveSessionBridge(client, handlers, {
-      playAudio: () => {}, flushAudio: () => {}, caption: () => {}, micSet: () => {},
+      playAudio: () => {}, flushAudio: () => {}, caption: () => {}, userSpeech: () => {}, micSet: () => {},
       connection: () => {}, resumptionHandle: () => {}, error: () => {},
     })
     await bridge.start(context)

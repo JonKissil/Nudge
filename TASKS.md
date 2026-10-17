@@ -214,5 +214,26 @@ Times are rough targets for a ~24–36h hackathon (H = hours since kickoff).
   System Settings shows Nudge/Electron has not yet requested Screen Recording or Microphone access, and no
   app has requested Automation access. Track A's capture and Chrome-focus paths must trigger those prompts
   before the permissions can be granted and the demo-Mac acceptance boxes can be checked.
+<<<<<<< Updated upstream
 =======
 >>>>>>> f5bb2fc (Scaffold)
+=======
+- 2026-10-16 — B / post-rebase integration: Track A's M1 overlay is now connected to live session notes.
+  `pin_next_step` creates a three-minute overlay note, uses an OCR line anchor when supplied, and falls back
+  to the task window's margin when OCR or line lookup is unavailable. Dismiss actions remove live notes.
+  The system prompt now ignores Nudge's own overlay if it appears in captured frames. Fixed a Live turn-queue
+  race so a nudge waiting behind a silent `[CHECK]` still speaks when check-in opens. Typecheck, 33 tests,
+  lint, production build, and a desktop launch with the control window visible passed. Session snapshot
+  updates now avoid resetting overlay button hit testing unless the interactive controls change. Track A's M2
+  perception/window-lock work is still absent, so real frame flow and demo-path acceptance remain open.
+- 2026-10-16 — B / voice and demo hardening: Added Live input transcription as the check-in speech signal,
+  wired the push-to-talk, pause, and HUD shortcuts, and showed microphone state in the overlay. The control
+  window now has a working demo toggle, live status HUD, and permission checklist. Offline mode treats
+  ambiguous windows as on-task and uses a chime plus the card for clear distractions. Typecheck, 36 tests,
+  lint, production build, and desktop launch passed. The desktop UI confirmed demo task prefill and HUD
+  visibility. This development Mac currently reports Screen Recording granted and Microphone denied; no
+  permission was changed. Shortcut behavior and a real microphone check-in still need the demo laptop.
+- 2026-10-16 — B / pitch preparation: Drafted a six-slide deck and three-minute speaker script with
+  honest cost, offline, privacy, and blocker answers. The deck passed package/layout validation and visual
+  inspection. Rehearsals and backup video remain pending until Track A's capture/window-lock path works.
+>>>>>>> Stashed changes

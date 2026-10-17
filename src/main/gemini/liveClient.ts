@@ -211,6 +211,9 @@ export class GeminiLiveClient implements LiveClient {
       }
     }
     if (content.outputTranscription?.text) this.emit({ type: 'transcription', text: content.outputTranscription.text })
+    if (content.inputTranscription?.text?.trim()) {
+      this.emit({ type: 'user-transcription', text: content.inputTranscription.text })
+    }
     if (content.interrupted) this.emit({ type: 'interrupted' })
     if (content.interrupted || content.turnComplete || content.generationComplete) {
       this.modelSpeaking = false
@@ -226,7 +229,11 @@ export class GeminiLiveClient implements LiveClient {
   private flushTurns(): void {
     while (this.session && this.turns.length > 0) {
       const next = this.turns[0]
-      if (!next || (next.turnComplete && (this.modelSpeaking || this.awaitingTurn || this.checkinActive))) return
+      // A nudge may be queued behind a silent [CHECK] as check-in opens. Deliver that
+      // requested prompt once the prior turn ends; ordinary checks remain gated.
+      if (!next || (next.turnComplete && (
+        this.modelSpeaking || this.awaitingTurn || (this.checkinActive && next.tag !== 'NUDGE')
+      ))) return
       this.turns.shift()
       try {
         this.session.sendClientContent({ turns: [{ role: 'user', parts: [{ text: next.text }] }], turnComplete: next.turnComplete })

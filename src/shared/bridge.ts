@@ -1,5 +1,5 @@
 import type { IpcPayload, IPC } from './ipc'
-import type { ActionResult, SessionSnapshot, SessionStart, Settings, OverlayAction } from './types'
+import type { ActionResult, SessionSnapshot, SessionStart, Settings, OverlayAction, PermissionStatus } from './types'
 
 type Unsubscribe = () => void
 type Listen<C extends keyof IpcPayloadMap> = (listener: (payload: IpcPayloadMap[C]) => void) => Unsubscribe
@@ -15,8 +15,14 @@ export interface ControlApi {
   setSettings: (settings: Partial<Settings>) => Promise<ActionResult>
 <<<<<<< HEAD
   previewOverlay: (action: 'next' | 'hide') => Promise<ActionResult>
+<<<<<<< Updated upstream
 =======
 >>>>>>> f5bb2fc (Scaffold)
+=======
+  setCaptureRunning: (running: boolean) => Promise<ActionResult>
+  getPermissionStatus: () => Promise<PermissionStatus>
+  openPermissionSettings: (kind: 'screen' | 'microphone' | 'automation') => Promise<ActionResult>
+>>>>>>> Stashed changes
 }
 export interface OverlayApi {
   kind: 'overlay'
@@ -32,7 +38,10 @@ export interface MediaApi {
   onMicSet: Listen<typeof IPC.micSet>
   onAudioPlay: Listen<typeof IPC.audioPlay>
   onAudioFlush: Listen<typeof IPC.audioFlush>
+  onAudioChime: Listen<typeof IPC.audioChime>
   onFullFrameRequest: Listen<typeof IPC.frameRequestFull>
   onCaptureSet: Listen<typeof IPC.captureSet>
+  sendCaptureStatus: (status: IpcPayload<typeof IPC.captureStatus>) => void
+  ready: () => void
 }
 export type NudgeApi = ControlApi | OverlayApi | MediaApi

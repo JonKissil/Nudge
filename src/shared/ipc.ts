@@ -1,11 +1,11 @@
 import { z } from 'zod'
 import {
-  OverlayActionSchema, OverlayStateSchema, SessionSnapshotSchema, SessionStartSchema, SettingsSchema,
+  CaptureStatusSchema, OverlayActionSchema, OverlayStateSchema, SessionSnapshotSchema, SessionStartSchema, SettingsSchema,
 } from './types'
 
 export const IPC = {
   frame: 'frame', frameFull: 'frame:full', micChunk: 'mic:chunk', micSet: 'mic:set',
-  audioPlay: 'audio:play', audioFlush: 'audio:flush', frameRequestFull: 'frame:request-full',
+  audioPlay: 'audio:play', audioFlush: 'audio:flush', audioChime: 'audio:chime', frameRequestFull: 'frame:request-full',
   captureSet: 'capture:set', overlayState: 'overlay:state', overlayAction: 'overlay:action',
   overlayHover: 'overlay:hover', sessionStart: 'session:start', sessionLockWindow: 'session:lock-window',
 <<<<<<< HEAD
@@ -13,6 +13,8 @@ export const IPC = {
 =======
 >>>>>>> f5bb2fc (Scaffold)
   sessionEnd: 'session:end', sessionSnapshot: 'session:snapshot', settingsSet: 'settings:set',
+  permissionsStatus: 'permissions:status', permissionsOpen: 'permissions:open',
+  mediaReady: 'media:ready', captureStatus: 'capture:status',
 } as const
 
 export const EmptySchema = z.strictObject({})
@@ -26,8 +28,11 @@ export const IpcSchemas = {
   [IPC.micSet]: z.strictObject({ open: z.boolean() }),
   [IPC.audioPlay]: z.strictObject({ pcm24Base64: base64 }),
   [IPC.audioFlush]: EmptySchema,
+  [IPC.audioChime]: EmptySchema,
   [IPC.frameRequestFull]: EmptySchema,
   [IPC.captureSet]: z.strictObject({ running: z.boolean() }),
+  [IPC.mediaReady]: EmptySchema,
+  [IPC.captureStatus]: CaptureStatusSchema,
   [IPC.overlayState]: OverlayStateSchema,
   [IPC.overlayAction]: OverlayActionSchema,
   [IPC.overlayHover]: z.strictObject({ interactive: z.boolean() }),
@@ -41,6 +46,8 @@ export const IpcSchemas = {
   [IPC.sessionEnd]: EmptySchema,
   [IPC.sessionSnapshot]: SessionSnapshotSchema,
   [IPC.settingsSet]: SettingsSchema.partial(),
+  [IPC.permissionsStatus]: EmptySchema,
+  [IPC.permissionsOpen]: z.strictObject({ kind: z.enum(['screen', 'microphone', 'automation']) }),
 }
 export type IpcChannel = keyof typeof IpcSchemas
 export type IpcPayload<C extends IpcChannel> = z.infer<(typeof IpcSchemas)[C]>

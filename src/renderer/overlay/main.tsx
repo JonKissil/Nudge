@@ -42,10 +42,10 @@ export function Overlay() {
     }
   }, [onInteractive])
   useEffect(() => {
-    // Main also resets hit testing whenever it publishes a new view.
+    // Text and timer updates should not disable a button while it is being clicked.
     getApi().setInteractive(false)
     interactive.current = false
-  }, [state])
+  }, [state?.pill.state, Boolean(state?.nudge), state?.notes.map((note) => note.id).join(',')])
 
   const controls = { onAction: getApi().action, onInteractive }
   const visible = state && !['IDLE', 'SETUP', 'ENDED'].includes(state.pill.state)

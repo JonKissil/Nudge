@@ -86,6 +86,26 @@ export class AudioPlayer {
     return queued
   }
 
+  async chime(): Promise<void> {
+    const context = this.context ?? new AudioContext()
+    this.context = context
+    await context.resume()
+    const start = context.currentTime
+    for (const [offset, frequency] of [[0, 659], [0.13, 880]] as const) {
+      const oscillator = context.createOscillator()
+      const volume = context.createGain()
+      oscillator.type = 'sine'
+      oscillator.frequency.value = frequency
+      volume.gain.setValueAtTime(0.0001, start + offset)
+      volume.gain.exponentialRampToValueAtTime(0.035, start + offset + 0.025)
+      volume.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.18)
+      oscillator.connect(volume).connect(context.destination)
+      oscillator.onended = () => { oscillator.disconnect(); volume.disconnect() }
+      oscillator.start(start + offset)
+      oscillator.stop(start + offset + 0.19)
+    }
+  }
+
   private async schedule(pcm24Base64: string, generation: number): Promise<void> {
     if (generation !== this.generation) return
     const context = this.context ?? new AudioContext()

@@ -151,3 +151,4 @@ vite.config.ts.timestamp-*
 # Nudge native helpers and local macOS files
 resources/bin/*
 .DS_Store
+pitch/.build/

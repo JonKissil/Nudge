@@ -37,6 +37,7 @@ export type LiveEvent =
   | { type: 'tool-call'; call: LiveToolCall }
   | { type: 'audio'; pcm24Base64: string }
   | { type: 'transcription'; text: string }
+  | { type: 'user-transcription'; text: string }
   | { type: 'generation-complete' }
   | { type: 'interrupted' }
   | { type: 'error'; message: string }

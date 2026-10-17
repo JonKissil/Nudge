@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { ControlApi } from '../../shared/bridge'
 import type { SessionSnapshot } from '../../shared/types'
+import { DEMO_TASK } from '../../shared/config'
+import { DevHud } from './DevHud'
+import { Permissions } from './Permissions'
 import styles from './App.module.css'
 
 function getApi(): ControlApi {
@@ -55,17 +58,36 @@ export function App() {
     finally { setPreviewBusy(false) }
   }
 
+<<<<<<< Updated upstream
 =======
 >>>>>>> f5bb2fc (Scaffold)
+=======
+  async function changeSetting(setting: 'demoMode' | 'showHud', enabled: boolean): Promise<void> {
+    setError('')
+    try {
+      const result = await getApi().setSettings({ [setting]: enabled })
+      if (!result.ok) setError(result.error)
+      else if (setting === 'demoMode' && enabled && snapshot?.state === 'IDLE') {
+        setTask(DEMO_TASK)
+        setMinutes(30)
+      }
+    } catch { setError('Could not update this setting. Please try again.') }
+  }
+
+>>>>>>> Stashed changes
   return (
     <main className={styles.shell}>
       <header className={styles.header}>
         <span className={styles.brand}><span className={styles.mark} aria-hidden="true">↗</span> Nudge</span>
+<<<<<<< Updated upstream
 <<<<<<< HEAD
         <span className={styles.badge}>Early build · M1</span>
 =======
         <span className={styles.badge}>Early build · M0</span>
 >>>>>>> f5bb2fc (Scaffold)
+=======
+        <span className={styles.badge}>Early build</span>
+>>>>>>> Stashed changes
       </header>
       <p className={styles.eyebrow}>A LITTLE COMPANY FOR YOUR FOCUS</p>
       <h1>One thing at a time.</h1>
@@ -84,7 +106,19 @@ export function App() {
         {snapshot?.state === 'SETUP' && <p role="status" className={styles.saved}>Task saved. Window locking is coming next.</p>}
         {error && <p role="alert" className={styles.error}>{error}</p>}
       </form>
+<<<<<<< Updated upstream
 <<<<<<< HEAD
+=======
+      <section className={styles.settings} aria-label="Session settings">
+        <label><input type="checkbox" checked={snapshot?.settings.demoMode ?? false}
+          onChange={(event) => { void changeSetting('demoMode', event.target.checked) }} /> Demo mode</label>
+        <label><input type="checkbox" checked={snapshot?.settings.showHud ?? false}
+          onChange={(event) => { void changeSetting('showHud', event.target.checked) }} /> Show live status</label>
+        <p>Voice: ⌘⇧Space · Pause: ⌘⇧P · Live status: ⌘⇧D</p>
+      </section>
+      {snapshot?.settings.showHud && <DevHud snapshot={snapshot} />}
+      <Permissions api={getApi()} />
+>>>>>>> Stashed changes
       <section className={styles.preview} aria-label="Overlay preview">
         <div className={styles.previewHeader}><strong>Overlay preview</strong><span>Development</span></div>
         <p>Cycle through the pill, check-in, arrow, next step, captions, and session states. Buttons simulate their actions.</p>
@@ -100,7 +134,7 @@ export function App() {
 >>>>>>> f5bb2fc (Scaffold)
       <aside className={styles.note}>
         <strong>Your space, your pace.</strong>
-        <p>This first build sets up your task. Screen capture, voice, and study sessions arrive in the next milestones.</p>
+        <p>The live study flow is being connected. For now, you can save a task, preview the overlay, and check permissions.</p>
       </aside>
       <footer className={styles.footer}>
         <span>Desktop connection: {snapshot ? 'ready' : 'loading'}</span>

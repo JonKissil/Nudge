@@ -40,6 +40,14 @@ describe('study session reducer', () => {
     expect(locked.effects[2]).toMatchObject({ turn: { tag: 'SESSION_START', turnComplete: true } })
   })
 
+  it('switches demo timing without resetting the active task or drift timer', () => {
+    const drifting = step(setup(), { type: 'WINDOW_OBSERVED', window: video, verdict: 'off', matchesTask: false }, 1000)
+    const updated = reduce(drifting, { type: 'SET_CONFIG', config: { ...config, graceMs: 90_000 } }, 5000)
+    expect(updated.state.taskWindow).toEqual(doc)
+    expect(updated.state.driftSince).toBe(1000)
+    expect(step(updated.state, { type: 'TICK' }, 16_000).phase).toBe('DRIFTING')
+  })
+
   it('asks about ambiguous windows, accepts generous judgments, and ignores our own window', () => {
     let state = setup()
     const asked = reduce(state, { type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false }, 1000)

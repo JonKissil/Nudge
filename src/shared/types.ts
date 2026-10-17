@@ -15,10 +15,13 @@ export const WindowBoundsSchema = z.strictObject({
   x: z.number().finite(), y: z.number().finite(),
   width: z.number().positive(), height: z.number().positive(),
 })
+export type WindowBounds = z.infer<typeof WindowBoundsSchema>
 const unit = z.number().min(0).max(1)
 export const NormalizedBoxSchema = z.strictObject({ x: unit, y: unit, w: unit, h: unit })
+export type NormalizedBox = z.infer<typeof NormalizedBoxSchema>
 export const WindowInfoSchema = z.strictObject({
   app: z.string().min(1), bundleId: z.string(), title: z.string(),
+  id: z.number().int().nonnegative().optional(), ownerPid: z.number().int().positive().optional(),
   url: z.url().optional(), bounds: WindowBoundsSchema,
 })
 export type WindowInfo = z.infer<typeof WindowInfoSchema>
@@ -35,11 +38,21 @@ export const StatusSchema = z.strictObject({
 export type Status = z.infer<typeof StatusSchema>
 export const SettingsSchema = z.strictObject({ demoMode: z.boolean(), showHud: z.boolean() })
 export type Settings = z.infer<typeof SettingsSchema>
+export const CaptureStatusSchema = z.strictObject({
+  state: z.enum(['off', 'starting', 'running', 'error']), error: z.string().max(500).optional(),
+})
+export type CaptureStatus = z.infer<typeof CaptureStatusSchema>
+export const PermissionStatusSchema = z.strictObject({
+  screen: z.enum(['not-determined', 'granted', 'denied', 'restricted', 'unknown']),
+  microphone: z.enum(['not-determined', 'granted', 'denied', 'restricted', 'unknown']),
+})
+export type PermissionStatus = z.infer<typeof PermissionStatusSchema>
 export const HudStatsSchema = z.strictObject({
   framesPerMinute: z.number().nonnegative(),
   resumptionHandleAgeMs: z.number().nonnegative().nullable(),
   ruleVerdict: RuleVerdictSchema.optional(),
   currentWindow: WindowInfoSchema.optional(),
+  capture: CaptureStatusSchema.optional(),
   transitions: z.array(z.strictObject({
     from: SessionStateSchema, to: SessionStateSchema, at: z.number().nonnegative(),
   })).max(10),
@@ -48,6 +61,7 @@ export const HudStatsSchema = z.strictObject({
 export type HudStats = z.infer<typeof HudStatsSchema>
 export const PillStateSchema = z.strictObject({
   state: SessionStateSchema, offline: z.boolean(), snoozeUntil: z.number().nonnegative().optional(),
+  micOpen: z.boolean().optional(),
 })
 export type PillState = z.infer<typeof PillStateSchema>
 export const NudgeViewSchema = z.strictObject({ text: z.string().min(1) })
@@ -86,8 +100,13 @@ export const SessionSnapshotSchema = z.strictObject({
   task: z.string(), minutes: z.number().int().min(1).max(240),
 <<<<<<< HEAD
   overlayPreview: OverlayPreviewSchema.optional(),
+<<<<<<< Updated upstream
 =======
 >>>>>>> f5bb2fc (Scaffold)
+=======
+  micOpen: z.boolean().optional(),
+  lockWindowAt: z.number().nonnegative().optional(), lockError: z.string().optional(),
+>>>>>>> Stashed changes
 })
 export type SessionSnapshot = z.infer<typeof SessionSnapshotSchema>
 export const ActionResultSchema = z.discriminatedUnion('ok', [

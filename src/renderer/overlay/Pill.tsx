@@ -13,7 +13,7 @@ export function Pill({ pill, now, onAction, onInteractive }: OverlayControls & {
   const seconds = Math.max(0, Math.ceil(((pill.snoozeUntil ?? now) - now) / 1000))
   const remaining = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
   const paused = pill.state === 'PAUSED'
-  const label = pill.state === 'SNOOZED' ? `Snoozed · ${remaining}` : labels[pill.state]
+  const label = pill.micOpen ? 'Listening' : pill.state === 'SNOOZED' ? `Snoozed · ${remaining}` : labels[pill.state]
   return <aside className={styles.pill} aria-label="Nudge session">
     <span className={styles.dot} data-paused={paused || pill.state === 'SNOOZED'} aria-hidden="true" />
     <span className={styles.pillCopy}><strong>Nudge</strong><span>{label}{pill.offline && ' · Offline mode'}</span></span>

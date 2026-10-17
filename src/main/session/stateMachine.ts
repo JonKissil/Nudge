@@ -35,6 +35,7 @@ export interface StudyState {
 }
 
 export type StudyEvent =
+  | { type: 'SET_CONFIG'; config: StudyConfig }
   | { type: 'START_SETUP'; task: string; minutes: number }
   | { type: 'LOCK_WINDOW'; window: WindowInfo }
   | { type: 'WINDOW_OBSERVED'; window: WindowInfo; verdict: RuleVerdict; matchesTask: boolean }
@@ -94,6 +95,7 @@ function snooze(state: StudyState, now: number, durationMs: number): StudyResult
 }
 
 export function reduce(state: StudyState, event: StudyEvent, now: number): StudyResult {
+  if (event.type === 'SET_CONFIG') return result({ ...state, config: event.config })
   if (event.type === 'END' && state.phase !== 'ENDED') {
     return result({ ...state, phase: 'ENDED', checkPending: false }, [
       { type: 'CLOSE_MIC' }, { type: 'STOP_CAPTURE' },
