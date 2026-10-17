@@ -51,7 +51,7 @@ async function reachCheckin(f: ReturnType<typeof fixture>): Promise<void> {
   await f.engine.dispatch({ type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false }, 1)
   f.setNow(1)
   f.client.emit({ type: 'tool-call', call: { id: 'status', name: 'report_status', args: {
-    on_task: false, activity: 'Watching music video', confidence: 0.95,
+    check_id: f.engine.state.checkId!, on_task: false, activity: 'Watching music video', confidence: 0.95,
   } } })
   await vi.waitFor(() => expect(f.engine.state.phase).toBe('DRIFTING'))
   await f.engine.dispatch({ type: 'TICK' }, 15_001)
@@ -150,7 +150,7 @@ describe('study engine and Live tool loop', () => {
     await f.engine.dispatch({ type: 'LOCK_WINDOW', window: doc }, 0)
     await f.engine.dispatch({ type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false }, 1)
     f.client.emit({ type: 'tool-call', call: { id: 'invalid', name: 'report_status', args: {
-      on_task: true, activity: 'one two three four five six seven eight nine', confidence: 0.9,
+      check_id: f.engine.state.checkId!, on_task: true, activity: 'one two three four five six seven eight nine', confidence: 0.9,
     } } })
     await vi.waitFor(() => expect(f.client.toolResponses).toHaveLength(1))
     expect(f.client.toolResponses[0]).toMatchObject({ id: 'invalid', scheduling: 'silent', response: { ok: false } })
@@ -160,12 +160,38 @@ describe('study engine and Live tool loop', () => {
     await f.engine.dispatch({ type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false }, 10_000)
     expect(f.client.turns.filter((turn) => turn.tag === 'CHECK')).toHaveLength(2)
     f.client.emit({ type: 'tool-call', call: { id: 'valid', name: 'report_status', args: {
-      on_task: true, activity: 'Reading history sources', confidence: 0.9,
+      check_id: f.engine.state.checkId!, on_task: true, activity: 'Reading history sources', confidence: 0.9,
     } } })
     await vi.waitFor(() => expect(f.client.toolResponses).toHaveLength(2))
     expect(f.client.toolResponses[1]).toMatchObject({ id: 'valid', scheduling: 'silent', response: { ok: true } })
     expect(f.engine.state.lastStatus?.activity).toBe('Reading history sources')
     await f.engine.dispatch({ type: 'END' }, 20_000)
+    f.bridge.dispose()
+  })
+
+  it('recovers when a completed model check never calls report_status', async () => {
+    const f = fixture()
+    await f.engine.dispatch({ type: 'START_SETUP', task: 'History essay', minutes: 30 })
+    await f.engine.dispatch({ type: 'LOCK_WINDOW', window: doc })
+    await f.engine.dispatch({ type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false })
+    const id = f.engine.state.checkId!
+    f.client.emit({ type: 'check-complete', checkId: id })
+    await vi.waitFor(() => expect(f.engine.state.checkPending).toBe(false))
+    expect(f.engine.state.phase).toBe('FOCUSED')
+    await f.engine.dispatch({ type: 'WINDOW_OBSERVED', window: video, verdict: 'ask', matchesTask: false })
+    const nextId = f.engine.state.checkId!
+    expect(nextId).not.toBe(id)
+    f.client.emit({ type: 'tool-call', call: { id: 'old', name: 'report_status', args: {
+      check_id: id, on_task: true, activity: 'Earlier essay', confidence: 1,
+    } } })
+    await vi.waitFor(() => expect(f.client.toolResponses).toHaveLength(1))
+    expect(f.client.toolResponses[0]?.response.ok).toBe(false)
+    expect(f.engine.state.checkPending).toBe(true)
+    f.client.emit({ type: 'tool-call', call: { id: 'new', name: 'report_status', args: {
+      check_id: nextId, on_task: false, activity: 'Unrelated video', confidence: 0.95,
+    } } })
+    await vi.waitFor(() => expect(f.engine.state.phase).toBe('DRIFTING'))
+    await f.engine.dispatch({ type: 'END' })
     f.bridge.dispose()
   })
 

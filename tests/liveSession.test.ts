@@ -80,7 +80,7 @@ describe('LiveSessionBridge', () => {
     })
     await bridge.start(context)
     client.emit({ type: 'tool-call', call: { id: 'status-1', name: 'report_status', args: {
-      on_task: false, activity: 'Watching a video', confidence: 0.8,
+      check_id: 'check-1', on_task: false, activity: 'Watching a video', confidence: 0.8,
     } } })
     await vi.waitFor(() => expect(client.toolResponses).toHaveLength(1))
     expect(client.toolResponses[0]).toMatchObject({ id: 'status-1', scheduling: 'silent', response: { ok: true } })

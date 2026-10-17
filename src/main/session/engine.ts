@@ -64,10 +64,10 @@ export function createStudyToolHandlers(engine: StudyEngine): ToolHandlers {
       : Promise.resolve({ ok: false, error: `This action is only available during ${phase.toLowerCase()}.` })
 
   return {
-    reportStatus: (status) => engine.state.checkPending
-      ? engine.dispatch({ type: 'MODEL_STATUS', status })
-      : Promise.resolve({ ok: false, error: 'No screen check is pending.' }),
-    reportStatusFailed: async () => { await engine.dispatch({ type: 'CHECK_FAILED' }) },
+    reportStatus: ({ check_id, ...status }) => engine.state.checkPending && engine.state.checkId === check_id
+      ? engine.dispatch({ type: 'MODEL_STATUS', status, checkId: check_id })
+      : Promise.resolve({ ok: false, error: 'This screen check is no longer current.' }),
+    reportStatusFailed: async (checkId) => { await engine.dispatch({ type: 'CHECK_FAILED', checkId }) },
     focusTaskWindow: () => engine.state.phase === 'CHECKIN'
       || (engine.state.phase === 'RETURNING' && engine.state.returnMode === 'guided')
       ? engine.dispatch({ type: 'RETURN_REQUEST', mode: 'focused' })

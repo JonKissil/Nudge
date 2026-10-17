@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { SessionStartSchema, StatusSchema } from '../../shared/types'
-import type { SessionStart, Status } from '../../shared/types'
+import type { SessionStart } from '../../shared/types'
 import type { LiveToolCall, LiveToolResponse } from './types'
 
 const empty = z.strictObject({})
@@ -10,10 +10,11 @@ const pinArgs = z.strictObject({
 })
 const snoozeArgs = z.strictObject({ minutes: z.number().int().min(1).max(30).default(5) })
 const allowArgs = z.strictObject({ reason: z.string().trim().min(1).max(200) })
+const statusArgs = StatusSchema.extend({ check_id: z.string().regex(/^check-[1-9]\d*$/u) })
 
 export interface ToolHandlers {
-  reportStatus(args: Status): Promise<Record<string, unknown>>
-  reportStatusFailed?(): Promise<void>
+  reportStatus(args: z.infer<typeof statusArgs>): Promise<Record<string, unknown>>
+  reportStatusFailed?(checkId: string): Promise<void>
   focusTaskWindow(): Promise<Record<string, unknown>>
   guideToTask(): Promise<Record<string, unknown>>
   pinNextStep(args: z.infer<typeof pinArgs>): Promise<Record<string, unknown>>
@@ -27,9 +28,10 @@ export interface ToolHandlers {
 export const TOOL_DECLARATIONS = [
   { name: 'report_status', description: 'Silently report whether the current screen relates to the study task.', behavior: 'NON_BLOCKING', parametersJsonSchema: {
     type: 'object', properties: {
+      check_id: { type: 'string', description: 'Copy check_id from the current CHECK message exactly' },
       on_task: { type: 'boolean' }, activity: { type: 'string', description: 'At most eight words' },
       confidence: { type: 'number', minimum: 0, maximum: 1 },
-    }, required: ['on_task', 'activity', 'confidence'], additionalProperties: false,
+    }, required: ['check_id', 'on_task', 'activity', 'confidence'], additionalProperties: false,
   } },
   { name: 'focus_task_window', description: 'Take the student back to the locked task window or tab.', behavior: 'NON_BLOCKING' },
   { name: 'guide_to_task', description: 'Show the student where to click to return to the task.', behavior: 'NON_BLOCKING' },
@@ -58,7 +60,7 @@ export async function runToolCall(call: LiveToolCall, handlers: ToolHandlers): P
   let response: Record<string, unknown>
   try {
     switch (call.name) {
-      case 'report_status': response = await handlers.reportStatus(StatusSchema.parse(call.args)); break
+      case 'report_status': response = await handlers.reportStatus(statusArgs.parse(call.args)); break
       case 'focus_task_window': empty.parse(call.args); response = await handlers.focusTaskWindow(); break
       case 'guide_to_task': empty.parse(call.args); response = await handlers.guideToTask(); break
       case 'pin_next_step': response = await handlers.pinNextStep(pinArgs.parse(call.args)); break
@@ -77,7 +79,9 @@ export async function runToolCall(call: LiveToolCall, handlers: ToolHandlers): P
   }
   if (call.name === 'report_status' && response.ok === false) {
     // Invalid arguments must not leave the app waiting forever for this check.
-    try { await handlers.reportStatusFailed?.() }
+    const checkId = typeof call.args === 'object' && call.args !== null && 'check_id' in call.args
+      && typeof call.args.check_id === 'string' ? call.args.check_id : undefined
+    try { if (checkId) await handlers.reportStatusFailed?.(checkId) }
     catch { /* Keep the original tool error and always respond to the model. */ }
   }
   return { id: call.id, name: call.name, response, scheduling }

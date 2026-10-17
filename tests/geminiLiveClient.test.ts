@@ -16,7 +16,7 @@ const sdk = vi.hoisted(() => ({
 vi.mock('@google/genai', () => ({
   Behavior: { NON_BLOCKING: 'NON_BLOCKING' },
   FunctionResponseScheduling: { SILENT: 'SILENT', WHEN_IDLE: 'WHEN_IDLE' },
-  MediaResolution: { MEDIA_RESOLUTION_LOW: 'MEDIA_RESOLUTION_LOW' },
+  MediaResolution: { MEDIA_RESOLUTION_MEDIUM: 'MEDIA_RESOLUTION_MEDIUM' },
   Modality: { AUDIO: 'AUDIO' },
   GoogleGenAI: class {
     live = { connect: async ({ callbacks, config }: { callbacks: typeof sdk.callbacks; config: unknown }) => {
@@ -59,7 +59,7 @@ describe('GeminiLiveClient transport', () => {
     const client = new GeminiLiveClient('test-key')
     await client.connect(context)
     expect(sdk.config).toMatchObject({
-      responseModalities: ['AUDIO'], mediaResolution: 'MEDIA_RESOLUTION_LOW',
+      responseModalities: ['AUDIO'], mediaResolution: 'MEDIA_RESOLUTION_MEDIUM',
       contextWindowCompression: { slidingWindow: {} }, sessionResumption: {},
       inputAudioTranscription: {}, outputAudioTranscription: {},
       speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } } },
@@ -79,7 +79,7 @@ describe('GeminiLiveClient transport', () => {
     expect(sdk.closes).toBe(1)
   })
 
-  it('queues complete turns until server turn completion and check-in end', async () => {
+  it('queues complete turns during speech and discards obsolete checks at check-in', async () => {
     const client = new GeminiLiveClient('test-key')
     await client.connect(context)
     client.sendTurn({ tag: 'SESSION_START', text: '[SESSION_START]', turnComplete: true })
@@ -94,6 +94,8 @@ describe('GeminiLiveClient transport', () => {
     sdk.callbacks?.onmessage({ serverContent: { turnComplete: true } })
     expect(sdk.turns).toHaveLength(1)
     client.setCheckinActive(false)
+    expect(sdk.turns).toHaveLength(1)
+    client.sendTurn({ tag: 'CHECK', text: '[CHECK] fresh window', turnComplete: true })
     expect(sdk.turns).toHaveLength(2)
     await client.disconnect()
   })
@@ -111,6 +113,118 @@ describe('GeminiLiveClient transport', () => {
       { turns: [{ role: 'user', parts: [{ text: '[NUDGE]' }] }], turnComplete: true },
     ])
     await client.disconnect()
+  })
+
+  it('waits for a fresh video frame and keeps only the latest unsent check', async () => {
+    const client = new GeminiLiveClient('test-key')
+    await client.connect(context)
+    client.sendFrame('old-essay-frame')
+    client.sendTurn({ tag: 'CHECK', checkId: 'check-1', text: '[CHECK] old tab', turnComplete: true })
+    client.sendTurn({ tag: 'CHECK', checkId: 'check-2', text: '[CHECK] current tab', turnComplete: true })
+    expect(sdk.turns).toHaveLength(0)
+    client.sendFrame('current-entertainment-frame')
+    expect(sdk.turns).toHaveLength(1)
+    expect(sdk.media).toEqual([{ video: { data: 'old-essay-frame', mimeType: 'image/jpeg' } }])
+    expect(sdk.turns[0]).toMatchObject({ turns: [{ parts: [{ text: '[CHECK] current tab' }, { inlineData: { data: 'current-entertainment-frame', mimeType: 'image/jpeg' } }] }] })
+    await client.disconnect()
+  })
+
+  it('keeps streaming during speech and binds a new capture after speech finishes', async () => {
+    const client = new GeminiLiveClient('test-key')
+    await client.connect(context)
+    client.sendTurn({ tag: 'SESSION_START', text: '[SESSION_START]', turnComplete: true })
+    client.sendTurn({ tag: 'CHECK', checkId: 'check-1', text: '[CHECK]', turnComplete: true })
+    client.sendFrame('during-greeting')
+    sdk.callbacks?.onmessage({ serverContent: { turnComplete: true } })
+    expect(sdk.turns).toHaveLength(1)
+    client.sendFrame('after-greeting')
+    expect(sdk.turns.at(-1)).toMatchObject({ turns: [{ parts: [
+      { text: '[CHECK]' }, { inlineData: { data: 'after-greeting', mimeType: 'image/jpeg' } },
+    ] }] })
+    expect(sdk.media).toEqual([{ video: { data: 'during-greeting', mimeType: 'image/jpeg' } }])
+    await client.disconnect()
+  })
+
+  it('does not resend the cached image when reconnecting during pause', async () => {
+    vi.useFakeTimers()
+    const client = new GeminiLiveClient('test-key')
+    try {
+      await client.connect(context)
+      client.sendFrame('before-pause')
+      client.updateContext({ ...context, state: 'PAUSED' })
+      sdk.callbacks?.onmessage({ goAway: {} })
+      await vi.advanceTimersByTimeAsync(500)
+      expect(sdk.configs).toHaveLength(2)
+      expect(sdk.media).toHaveLength(1)
+    } finally { await client.disconnect(); vi.useRealTimers() }
+  })
+
+  it('releases a check on turn completion even if the model speaks instead of reporting', async () => {
+    const client = new GeminiLiveClient('test-key')
+    const events: unknown[] = []
+    client.onEvent((event) => events.push(event))
+    await client.connect(context)
+    client.sendTurn({ tag: 'CHECK', checkId: 'check-1', text: '[CHECK]', turnComplete: true })
+    client.sendFrame('frame')
+    sdk.callbacks?.onmessage({ serverContent: { modelTurn: { parts: [
+      { inlineData: { data: 'cGNt', mimeType: 'audio/pcm' } },
+    ] }, outputTranscription: { text: 'Unexpected check narration' } } })
+    expect(events.some((event) => ['audio', 'transcription'].includes((event as { type: string }).type))).toBe(false)
+    sdk.callbacks?.onmessage({ serverContent: { generationComplete: true } })
+    expect(events).not.toContainEqual({ type: 'check-complete', checkId: 'check-1' })
+    sdk.callbacks?.onmessage({ serverContent: { turnComplete: true } })
+    expect(events).toContainEqual({ type: 'check-complete', checkId: 'check-1' })
+    client.sendAudio('cGNt')
+    sdk.callbacks?.onmessage({ serverContent: { modelTurn: { parts: [
+      { inlineData: { data: 'cGNt', mimeType: 'audio/pcm' } },
+    ] }, outputTranscription: { text: 'A student reply' } } })
+    expect(events).toContainEqual({ type: 'audio', pcm24Base64: 'cGNt' })
+    expect(events).toContainEqual({ type: 'transcription', text: 'A student reply' })
+    await client.disconnect()
+  })
+
+  it('does not leave a nudge behind an unsent check waiting for a frame', async () => {
+    const client = new GeminiLiveClient('test-key')
+    await client.connect(context)
+    client.sendTurn({ tag: 'CHECK', checkId: 'check-1', text: '[CHECK]', turnComplete: true })
+    client.sendTurn({ tag: 'NUDGE', text: '[NUDGE]', turnComplete: true })
+    client.setCheckinActive(true)
+    expect(sdk.turns).toEqual([{ turns: [{ role: 'user', parts: [{ text: '[NUDGE]' }] }], turnComplete: true }])
+    await client.disconnect()
+  })
+
+  it('recovers the connection if a check never completes, then sends the fresh retry', async () => {
+    vi.useFakeTimers()
+    const client = new GeminiLiveClient('test-key')
+    try {
+      await client.connect(context)
+      client.sendTurn({ tag: 'CHECK', checkId: 'check-1', text: '[CHECK] stalled', turnComplete: true })
+      client.sendFrame('first')
+      await vi.advanceTimersByTimeAsync(10_000)
+      client.sendTurn({ tag: 'CHECK', checkId: 'check-2', text: '[CHECK] retry', turnComplete: true })
+      client.sendFrame('fresh')
+      await vi.advanceTimersByTimeAsync(500)
+      expect(sdk.configs).toHaveLength(2)
+      expect(sdk.closes).toBe(1)
+      expect(sdk.turns).toHaveLength(1)
+      client.sendFrame('post-reconnect')
+      expect(sdk.turns.at(-1)).toMatchObject({ turns: [{ parts: [{ text: '[CHECK] retry' }, { inlineData: { data: 'post-reconnect', mimeType: 'image/jpeg' } }] }] })
+    } finally { await client.disconnect(); vi.useRealTimers() }
+  })
+
+  it('recovers a stalled check even when a nudge is waiting behind it', async () => {
+    vi.useFakeTimers()
+    const client = new GeminiLiveClient('test-key')
+    try {
+      await client.connect(context)
+      client.sendTurn({ tag: 'CHECK', checkId: 'check-1', text: '[CHECK] stalled', turnComplete: true })
+      client.sendFrame('frame')
+      client.sendTurn({ tag: 'NUDGE', text: '[NUDGE]', turnComplete: true })
+      client.setCheckinActive(true)
+      await vi.advanceTimersByTimeAsync(10_500)
+      expect(sdk.configs).toHaveLength(2)
+      expect(sdk.turns.at(-1)).toMatchObject({ turns: [{ parts: [{ text: '[NUDGE]' }] }] })
+    } finally { await client.disconnect(); vi.useRealTimers() }
   })
 
   it('reports student speech from Live input transcription without storing the transcript', async () => {

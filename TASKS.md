@@ -19,7 +19,9 @@ confirmed; capture exclusion is still open. M3/M4 implementation is integrated a
 15-minute reconnect and full drift-demo checks still open. M5 focus/guide/allow and closed-tab recovery
 are implemented and Safari-tested. M6's document OCR and anchored-note implementation is connected;
 Safari re-entry acceptance passed with real Gemini; remaining demo acceptance is recorded below.
-M7 has several completed components; M8 has a draft deck and script.
+Checkpoint 2's automated Safari/local-page subset now passes three consecutive cycles after the
+screen-check reliability fix. The spoken Google Docs/YouTube demo remains open. M7 has several
+completed components; M8 has a draft deck and script.
 
 ---
 
@@ -29,10 +31,10 @@ M7 has several completed components; M8 has a draft deck and script.
 - [x] Three renderers (`media` hidden, `overlay`, `control`) + typed preload per window
 - [x] `src/shared/{types,ipc,config}.ts` with zod schemas from AGENTS.md §13 and DEFAULTS/DEMO from §7.3
 - [x] `.env.example`, `.gitignore` (`.env`, `resources/bin/*`), README with setup steps
-- [ ] **Grant macOS permissions on the demo laptop now** (Screen Recording, Mic, Automation) and restart.
-  Screen Recording, Accessibility, and Safari URL access passed the live checkpoint. Microphone and
-  spoken interaction passed in a Terminal-launched run. Recheck the final demo launch context and
-  Automation for actual focus actions; microphone status varies with the launching application.
+- [x] **Grant macOS permissions on the demo laptop now** (Screen Recording, Mic, Automation) and restart.
+  Verified on this Mac after a fresh direct Electron launch: Screen Recording, Microphone, and
+  Accessibility report granted; the local mic probe received 74 chunks, capture streamed to Gemini,
+  and Safari Automation performed actual focus actions. Recheck if the demo launch context changes.
 - **Accept:** `npm run dev` opens the control window; `npm run typecheck && npm test` pass on an empty test.
 
 ## M1 — Overlay (A, H2–H5)
@@ -65,7 +67,8 @@ M7 has several completed components; M8 has a draft deck and script.
 
 - [x] `LiveClient` interface + `FakeLiveClient` (scripted tool calls/audio events)
 - [x] `liveClient.ts`: connect with the AGENTS.md §6.2 config; fields checked against current docs and a real connection verified
-- [x] Stream `frame` IPC → `sendRealtimeInput` video; turn queue prevents complete turns during model speech (real frame flow + transport tests)
+- [x] Continuous `frame` IPC delivery to Live: fresh images travel with CHECK text, other frames use
+  realtime video; turn queue prevents complete turns during model speech (real frame flow + transport tests)
 - [x] Resumption handle storage and GoAway → resume with buffered media/turns (real handle received; resume path tested with mocked transport)
 - [ ] Verify unexpected-close backoff, failed resumption → `[CONTEXT_RESTORE]`, and exhausted-retry fallback
   (implemented; failure-path/live acceptance remains open)
@@ -81,15 +84,16 @@ M7 has several completed components; M8 has a draft deck and script.
 ## ⇄ Integration checkpoint 1 (H8)
 
 - [x] Real frames + real window events flow into the real Live session; the HUD shows `report_status` results from `[CHECK]` ticks
-- [x] Confirm the model stays silent on `[CHECK]`. If it's chatty: tighten the prompt → verify SILENT scheduling →
-  last resort, move classification to a separate non-Live Flash call with structured output (log the decision)
+- [x] Student-facing `[CHECK]` silence: initial real model checks emitted no audio; the transport now
+  also suppresses unsolicited CHECK audio/captions while preserving SILENT tool responses and backend
+  speaking-state tracking. Injected check narration was blocked at playback/caption IPC in the final run.
 
 ## M4 — Drift loop (B owns the state machine, A wires timers, H8–H12)
 
 - [x] `session/stateMachine.ts`: pure reducer with injected-clock tests for state transitions, grace/rate limits, silence, return timeout, and failed-check recovery
 - [x] `effects.ts` + `session.ts`: classification ticks, window-change observations, grace timer, and nudge rate limit (tests + real CHECK flow)
 - [x] `[NUDGE]` → card/mic effects → `CHECKIN`; silence → snooze (FakeLiveClient tests; real state transitions recorded)
-- [x] Overlay buttons dispatch through the same engine as tools (routing/tests complete; real return/allow actions depend on M5)
+- [x] Overlay buttons dispatch through the same engine as tools (routing/tests complete; actual return/allow verified in M5/M6)
 - [ ] Manual DEMO_MODE acceptance: verify 5+ minutes of on-task silence, the ~15s YouTube nudge's voice/card,
   and allowing that video through “This is for my task”
 - **Accept (DEMO_MODE):** on-task stays silent for 5+ minutes; YouTube music triggers a nudge after ~15s; "this is for my task" stops nudges for that video.
@@ -104,8 +108,10 @@ M7 has several completed components; M8 has a draft deck and script.
 - [x] `allow_current_window` end to end with persisted allow-list in `store.ts` (tool tests, actual overlay action and saved-page classification after a full Electron restart)
 - [x] Requested follow-up: checkpoint the locked task URL every 10s; reuse an open tab or reopen a closed tab on an explicit return request (background Safari URL update, closed-tab recovery through both return controls, no duplicate, and End cleanup verified)
 - [ ] Repeat return/guide/allow with spoken requests in a real Live check-in; Chrome has script tests but no native acceptance run
-- Main now supplies focus, tab-strip OCR guidance, and persisted allow actions. Safari acceptance uses
-  scripted model tool calls with the real OS, capture, IPC, overlay, and poller. Document OCR/line anchoring remains M6.
+- Main supplies focus, tab-strip OCR guidance, and persisted allow actions. Earlier Safari acceptance
+  used scripted tool calls; the checkpoint 2 attempt also verified actual Gemini-selected focus,
+  guide, and allow tools from text test requests. Spoken requests remain open. Document OCR/anchoring
+  is connected and verified in M6.
 - **Accept:** "take me back" switches to the doc tab in under ~1s from three different distracting tabs; "show me" draws an arrow on the correct tab.
 
 ## M6 — Re-entry note (A: OCR; B: prompt, H14–H18)
@@ -125,13 +131,24 @@ M7 has several completed components; M8 has a draft deck and script.
 
 ## ⇄ Integration checkpoint 2 (H18): full demo path
 
+- [x] Automated prerequisites: typecheck, 136 tests, lint, production build, three-renderer dev launch,
+  direct-launch permissions, and local microphone probe
+- [x] Three consecutive automated Safari/local-page cycles with real Gemini in one app process:
+  greeting → drift → voiced/captioned nudge → return → OCR-anchored question note → guided
+  arrow/return/note → persisted page allowance; three connections and 49 captured frames in the final run
+- [x] Screen-check regressions: stale window replies rejected by check ID; missing status calls release
+  the pending flag; expired/stalled checks retry/recover; CHECK narration cannot reach playback/captions
 - [ ] Run AGENTS.md §19 steps 1–7 end to end, three times in a row, without restarting the app
+  The initial failure and its fix are logged below. Automated repeatability now passes with temporary
+  local pages, realtime text requests, a simulated transcription/user-activity notification, and script-driven
+  Safari tab selection. Microphone audio was withheld from Gemini. Spoken input, listening quality,
+  physical tab clicks, and Google Docs/YouTube acceptance remain deferred at the student's request.
 
 ## M7 — Demo hardening (both, H18–H24)
 
 - [x] Demo-mode implementation: DEMO params, pre-filled task, HUD, environment flag, and control toggle (configuration tests/UI wiring)
 - [x] Degraded-mode implementation: rules-only judgment, offline pill, chime, and card (rule tests; media/overlay wiring)
-- [ ] Manual wifi-off acceptance, including usable controls once M5 actions are connected
+- [ ] Manual wifi-off acceptance with the connected M5 controls
 - [x] Permission checklist, System Settings links, native mic request, and local three-second mic probe (UI/recorded mic verification)
 - [x] Checklist refresh on focus/visibility and every 3s; distinguish launch-specific trust from denial
   and show working capture/browser access; direct macOS launcher and Safari setup copy verified
@@ -179,7 +196,7 @@ M7 has several completed components; M8 has a draft deck and script.
 
 ## Pre-demo checklist
 
-- [ ] Permissions granted, app fully restarted
+- [x] Permissions granted, app fully restarted (verified for the direct Electron launch on this Mac)
 - [ ] Headphones connected; output volume checked
 - [ ] `scripts/demo-reset.sh` run; DEMO_MODE on
 - [ ] Chrome: the Google Doc open at ≥100% zoom; a YouTube tab ready; notifications silenced (Focus mode)
@@ -190,6 +207,62 @@ M7 has several completed components; M8 has a draft deck and script.
 ## Log
 
 <!-- Date/time — lane — what happened / decision / blocker -->
+
+- 2026-10-17 — Screen-check diagnosis: reproduced the failure while inspecting outgoing JPEGs with
+  in-memory Vision OCR flags only. Entertainment frames kept arriving, but one CHECK response omitted
+  `report_status`; `checkPending` then remained set indefinitely. Checks could also start against the
+  preceding essay frame, and results had no request/window identity. Prompt-only changes and waiting
+  for the next realtime frame improved behavior but did not reliably ground the model's later judgments.
+  The Live API documents that ordering between realtime media and clientContent is not guaranteed:
+  https://ai.google.dev/api/live#BidiGenerateContentRealtimeInput
+- 2026-10-17 — Screen-check fix: each CHECK now carries its fresh JPEG and foreground metadata in one
+  clientContent turn, using MEDIUM visual detail. Other frames continue through realtime video; each
+  capture is sent once and the latest cached image is cleared on pause/disconnect. Unique `check_id`
+  values continue across study sessions, supersede earlier window checks, and reject stale replies or
+  failures. Completing a check without a valid status releases the pending flag. A ten-second reducer
+  watchdog retries missing results, including while focused; a transport watchdog recovers a stalled
+  CHECK without forcing an interrupting complete turn. Obsolete queued checks cannot block a nudge.
+  Unknown results remain generous/on-task rather than becoming forced off-task verdicts.
+- 2026-10-17 — Voice guard and prompt follow-up: unsolicited CHECK audio/captions are suppressed while
+  backend generation is still tracked for queue safety. Audible app turns and gated student audio remain
+  enabled. Clarified that SESSION_START confirms the already locked task without calling set_task, and
+  that an allowance needs an actual successful tool call before acknowledgement. The automated text
+  driver now sends the app's user-activity notification as real input transcription would, and permits
+  connection recovery rather than incorrectly requiring exactly one connect attempt per study session.
+- 2026-10-17 — Final automated checkpoint subset passed three consecutive cycles in one process:
+  three real Live connections, 49 captures, nine voiced/captioned nudges, three focus returns, three
+  OCR-guided arrows/returns, six anchored question notes, and three persisted allowances. Note timings
+  after arrival were 2.482s/2.007s, 3.152s/2.010s, and 2.841s/2.226s. Every note used `L5`; timing can
+  still slightly exceed three seconds. Zero CHECK audio chunks reached playback. An injected CHECK
+  utterance and caption were both blocked; greetings/nudges/user replies still reached playback. Actual
+  mic capture ran, but 1,434 chunks were withheld from Gemini. The test used local Safari fixtures and
+  realtime text, so it does not replace the deferred spoken Google Docs/YouTube acceptance.
+  Typecheck, all 136 tests, lint, production build, and the final three-renderer development smoke check
+  passed. Original saved state was restored, temporary Safari windows closed, and test instances quit.
+
+- 2026-10-17 — Integration checkpoint 2 attempted with Safari, as previously requested. Typecheck,
+  all 125 tests, lint, production build, and the three-renderer development smoke check passed.
+  Started a fresh built app through Launch Services: Screen Recording, Microphone, and Accessibility
+  all reported granted; the local mic probe received 74 chunks. Marked the current-launch permission
+  tasks complete. No macOS permission was changed.
+- 2026-10-17 — Checkpoint 2 automated Live subset: one app process hosted two study sessions without
+  restarting. Real Gemini received 39 screen frames; 36 completed `[CHECK]` turns emitted zero audio
+  chunks and zero caption characters. Both greetings produced audio/captions; five voiced/captioned
+  nudges opened the mic. Two `focus_task_window` actions succeeded in 209ms and 213ms from tool call
+  to response. Two `guide_to_task` actions produced actual tab-strip OCR arrows; selecting the task
+  tab triggered deterministic arrival and document OCR. Four real `pin_next_step` calls placed prompt
+  notes at `L5`; arrival-to-pin times were 3.509s, 2.145s, 3.091s, and 2.624s, so timing was not always
+  within three seconds. One real `allow_current_window` call persisted the current page, immediately
+  reclassified it on-task, and kept it focused through the observation interval.
+- 2026-10-17 — Checkpoint 2 result: one complete automated cycle passed. The second cycle's final
+  distraction never reached `CHECKIN` within 65s: rules returned `ask`, but the model's final accepted
+  judgment was on-task at confidence 1. The test stopped; a third cycle was not run, and the three-pass
+  checkpoint remains unchecked. These were temporary local essay/entertainment pages with actual
+  Gemini-selected tools from realtime text requests, not a Google Docs/YouTube spoken demo. Check-ins
+  exercised local mic capture, but 820 microphone chunks were withheld from Gemini during automation.
+  The student requested automated checks first and voice checks later. The existing Google Doc was
+  untouched; test Safari windows were closed, the original saved state restored, capture/Live stopped,
+  and the test app quit. No frames, microphone audio, or OCR text were logged or saved.
 
 - 2026-10-17 — Requested menu-bar integration: added a native macOS Nudge icon with monochrome
   inactive/paused and green active states, including Retina representations. The real session snapshot
