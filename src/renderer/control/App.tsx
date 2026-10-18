@@ -5,6 +5,7 @@ import type { SessionSnapshot } from '../../shared/types'
 import { DEMO_TASK } from '../../shared/config'
 import type { LanguageCode } from '../../shared/languages'
 import { Settings } from './Settings'
+import mascot from '../assets/desktop-mascot.png'
 import styles from './App.module.css'
 
 function getApi(): ControlApi {
@@ -22,6 +23,7 @@ export function App() {
   const [page, setPage] = useState<'home' | 'settings'>('home')
   const settingsButton = useRef<HTMLButtonElement>(null)
   const settingsHeading = useRef<HTMLHeadingElement>(null)
+  const content = useRef<HTMLDivElement>(null)
   const navigated = useRef(false)
   const [now, setNow] = useState(Date.now())
 
@@ -45,7 +47,7 @@ export function App() {
   }, [snapshot?.lockWindowAt])
   useEffect(() => {
     if (navigated.current) {
-      window.scrollTo(0, 0)
+      content.current?.scrollTo(0, 0)
       if (page === 'settings') settingsHeading.current?.focus()
       else settingsButton.current?.focus()
     }
@@ -91,10 +93,13 @@ export function App() {
   const remaining = snapshot?.lockWindowAt ? Math.max(1, Math.ceil((snapshot.lockWindowAt - now) / 1000)) : 0
 
   return (
-    <main className={styles.shell}>
+    <main className={styles.shell} data-theme={snapshot?.settings.theme ?? 'minimalist'}>
       <header className={styles.header}>
         {page === 'home' ? <>
-          <span className={styles.brand}>Nudge</span>
+          <span className={styles.brand}>
+            {snapshot?.settings.theme === 'playful' && <img src={mascot} alt="" className={styles.brandMascot} />}
+            Nudge
+          </span>
           <button ref={settingsButton} type="button" className={styles.navigation} aria-label="Settings"
             title="Settings" onClick={() => setPage('settings')}>
             Settings
@@ -104,6 +109,7 @@ export function App() {
           <h1 ref={settingsHeading} tabIndex={-1}>Settings</h1>
         </>}
       </header>
+      <div ref={content} className={styles.content}>
       {page === 'home' ? <form className={styles.card} onSubmit={(event) => { void submit(event) }}>
         <label htmlFor="task">Task</label>
         <textarea id="task" value={task} onChange={(event) => setTask(event.target.value)}
@@ -130,7 +136,10 @@ export function App() {
         </div>}
       </form> : <Settings api={getApi()} snapshot={snapshot} busy={busy} active={active}
         command={command} setDemoMode={setDemoMode} language={language} setLanguage={setLanguage} />}
+      {page === 'home' && ['IDLE', 'ENDED'].includes(snapshot?.state ?? '') && snapshot?.settings.theme === 'playful' &&
+        <img src={mascot} alt="" className={styles.homeMascot} />}
       {error && <p role="alert" className={styles.error}>{error}</p>}
+      </div>
     </main>
   )
 }

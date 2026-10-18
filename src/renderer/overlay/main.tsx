@@ -49,7 +49,7 @@ export function Overlay() {
 
   const controls = { onAction: getApi().action, onInteractive }
   const visible = state && !['IDLE', 'SETUP', 'ENDED'].includes(state.pill.state)
-  return <div className={styles.surface}>
+  return <div className={styles.surface} data-theme={state?.theme ?? 'minimalist'}>
     {visible && <Pill pill={state.pill} now={now} {...controls} />}
     {state?.nudge && <NudgeCard nudge={state.nudge} {...controls} />}
     {state?.guidance && <GuidanceCard text={state.guidance.text} {...controls} />}

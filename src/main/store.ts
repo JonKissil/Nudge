@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { mkdir, rename, unlink, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { AllowListEntry, WindowInfo } from '../shared/types'
+import type { AllowListEntry, Theme, WindowInfo } from '../shared/types'
 import { addAllowedWindow, StoredStateSchema, type StoredState } from './drift/allowList'
 import { SavedTaskTabSchema, type SavedTaskTab } from './session/taskUrl'
 import { GRACE_HISTORY_LIMIT, GraceReturnSchema } from '../shared/grace'
@@ -26,6 +26,13 @@ export class AppStore {
   }
 
   get allowList(): readonly AllowListEntry[] { return this.state.allowList }
+  get theme(): Theme { return this.state.theme ?? 'minimalist' }
+
+  saveTheme(theme: Theme): Promise<void> {
+    return this.update((state) => state.theme === theme ? state : { ...state, theme },
+      'The selected theme could not be saved. Please try again.')
+  }
+
   get graceHistory(): readonly number[] { return this.state.graceHistory ?? [] }
   get adaptiveGrace(): boolean { return this.state.adaptiveGrace ?? true }
   get geminiGrace(): boolean { return this.state.geminiGrace ?? true }

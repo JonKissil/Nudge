@@ -52,6 +52,10 @@ describe('IPC boundaries', () => {
   it('keeps empty commands and settings strict', () => {
     expect(IpcSchemas[IPC.sessionEnd].safeParse({ code: 'unexpected' }).success).toBe(false)
     expect(IpcSchemas[IPC.settingsSet].safeParse({ demoMode: true }).success).toBe(true)
+    for (const theme of ['pixelated', 'minimalist', 'neo-brutalist', 'playful']) {
+      expect(IpcSchemas[IPC.settingsSet].safeParse({ theme }).success).toBe(true)
+    }
+    expect(IpcSchemas[IPC.settingsSet].safeParse({ theme: 'unknown' }).success).toBe(false)
     expect(IpcSchemas[IPC.settingsSet].parse({ showHud: true })).toEqual({ showHud: true })
     expect(IpcSchemas[IPC.settingsSet].safeParse({ adaptiveGrace: false }).success).toBe(true)
     expect(IpcSchemas[IPC.settingsSet].safeParse({ geminiGrace: false }).success).toBe(true)
