@@ -190,7 +190,14 @@ completed components; M8 has a draft deck and script.
 - [ ] Quiet Mode listening pass on the demo Mac: confirm no speech during a live nudge or re-entry,
   and confirm both chimes are audible at a gentle volume.
 - [ ] Custom theme support from uploaded jpg or png file (also font support)
-- [ ] Several included base themes
+- [x] Several included base themes: Pixelated, Minimalist, Neo-brutalist, and Gorilla
+  (selection, overlay styling, saved preference, and partial-settings preservation verified)
+- [x] Requested Gorilla theme: forest/leaf-green controls and overlays, and speech-bubble nudges
+  with the existing three response buttons.
+  Previously saved Playful selections migrate to Gorilla without losing other settings.
+- [x] Requested Gorilla mascot revision: use the supplied `gorilla1.png` (closed) and `gorilla2.png`
+  (open) directly. Home/brand/theme picker use gorilla1; speech alternates both frames, while
+  idle and reduced motion show gorilla1. Supplied PNGs remain unchanged.
 - [ ] Session recap (focused minutes, returns, steps completed; framed as wins)
 - [ ] Ambient "co-working" presence (quiet sounds or a small avatar)
 - [x] Adaptive grace period from the student's history: bounded local return-duration history,
@@ -232,6 +239,47 @@ completed components; M8 has a draft deck and script.
 ## Log
 
 <!-- Date/time — lane — what happened / decision / blocker -->
+
+- 2026-10-18 — Integrated the character branch with origin/main's Quiet Mode and guided-return
+  changes while resolving the rebase conflicts. Kept the supplied Gorilla frames/speech bubble,
+  restored Show me how alongside the other three actions, preserved Quiet Mode persistence and
+  theme migration, and stopped mouth animation when Quiet Mode suppresses speech. Typecheck,
+  181 tests, lint, build, and dev launch passed. Isolated UI checks confirmed Quiet Mode preserves
+  the selected theme, both supplied frames animate, all four buttons work, and narrow layouts fit.
+
+- 2026-10-18 — Replaced generated mascot references with the supplied gorilla1/gorilla2 PNGs.
+  Both original 256 × 256 files are used directly; their byte hashes were verified in the renderer.
+  Nudge preloads both images and switches visibility while speaking, preventing transparent regions
+  from exposing the inactive frame. Home, brand, and theme picker use gorilla1. Idle and reduced motion
+  keep gorilla1 visible. Typecheck, 179 tests, lint, build, dev launch, and isolated UI checks passed:
+  both supplied frames, animation, idle/reduced-motion behavior, all response buttons, and narrow layout.
+
+- 2026-10-17 — Replaced the full-body mascot with two matching 8 × 8 head frames. Each frame is
+  enlarged onto a 1024 × 1024 PNG, plus a two-frame 2048 × 1024 sheet. The wide-open mouth shows
+  full top and bottom tooth rows, staggered tips, and a dark gap; every tooth uses the same grid
+  as the head. Shared non-mouth pixels prevent head movement between frames. The overlay alternates
+  the frames during model audio; generation completion, interruption, reconnection, and End restore
+  the closed frame. Warmup/captions do not animate it, and reduced motion keeps it still. Added strict
+  speaking-state IPC validation and a bridge lifecycle regression. Typecheck, 179 tests, lint, build,
+  and dev launch passed. Isolated UI checks verified the exact grid/tooth rows, both rendered frames,
+  idle/reduced-motion behavior, speech-bubble buttons, and narrow layout without screen/mic capture.
+
+- 2026-10-17 — Updated the gorilla to the requested literal 32 × 32 pixel grid while retaining its
+  on-screen size. The 1024 × 1024 PNG contains solid 32px square cells, with binary transparency and
+  no interpolation; all 1,048,576 output pixels were verified, including browser-decoded pixels.
+  The nudge displays it at 128px wide (4px per logical pixel). Removed the mascot's blurred shadow
+  and aligned the theme swatch to 32px. Typecheck, 178 tests, lint, dev launch, and isolated UI checks
+  passed; speech-bubble buttons, compact/narrow layouts, and other themes remain verified.
+
+- 2026-10-17 — Renamed the fourth theme to Gorilla throughout settings, IPC, rendering, and
+  persistence; existing Playful selections migrate on load. Replaced its mascot with a naturally
+  colored, pre-rendered 3D gorilla sprite, reduced to exactly 64 × 64 with transparency and pixelated
+  display scaling. Forest-green controls, leaf accents, and green speech bubbles replace the purple
+  theme. Nudges retain Take me back, 5 more min, and This is for my task, with click-through decoration.
+  Fixed partial settings updates resetting the theme and updated the native-window test fixture.
+  Typecheck, 178 tests, lint, and isolated three-renderer dev checks passed: actual theme label/colors,
+  image dimensions, compact home, speech bubble, all three preview actions, narrow layout, and other
+  themes verified. The isolated checks kept screen capture and microphone forwarding off.
 
 - 2026-10-17 — Screen-check diagnosis: reproduced the failure while inspecting outgoing JPEGs with
   in-memory Vision OCR flags only. Entertainment frames kept arriving, but one CHECK response omitted

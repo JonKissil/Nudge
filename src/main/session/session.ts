@@ -69,6 +69,7 @@ export function registerScaffoldIpc(
   let expiryTimer: ReturnType<typeof setTimeout> | undefined
   app.once('before-quit', () => { clearTimeout(expiryTimer) })
   let caption = ''
+  let modelSpeaking = false
   let nudgeVisible = false
   let guidance: Guidance = {}
   let sessionNotes: NoteView[] = []
@@ -102,7 +103,7 @@ export function registerScaffoldIpc(
         quietMode: snapshot.settings.quietMode },
       nudge: nudgeVisible ? { text: 'Still with your task, or taking a break?' } : undefined,
       ...guidance,
-      notes: sessionNotes, caption,
+      notes: sessionNotes, caption, speaking: modelSpeaking && snapshot.state !== 'PAUSED',
     })
     const isPreviewing = snapshot.state === 'IDLE' || snapshot.state === 'ENDED'
     const overlay = { ...(isPreviewing ? previewOverlay : sessionOverlay), theme: snapshot.settings.theme }
@@ -279,6 +280,7 @@ export function registerScaffoldIpc(
     flushAudio: () => getWindows()?.media.webContents.send(IPC.audioFlush, {}),
     resetAudio: () => getWindows()?.media.webContents.send(IPC.audioReset, {}),
     caption: (text) => { caption = text; publish() },
+    speaking: (active) => { modelSpeaking = active; publish() },
     userSpeech: () => { lastStudentSpeechAt = Date.now(); habitReviewer.cancel(); void study.dispatch({ type: 'USER_SPEECH' }) },
     micSet: (open) => getWindows()?.media.webContents.send(IPC.micSet, { open }),
     connection: (conn) => {

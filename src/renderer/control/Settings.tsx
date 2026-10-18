@@ -5,7 +5,7 @@ import { LANGUAGE_CODES, LANGUAGE_NATIVE_NAMES, type LanguageCode } from '../../
 import { HABIT_EXPLANATIONS } from '../../shared/habits'
 import { DevHud } from './DevHud'
 import { Permissions } from './Permissions'
-import mascot from '../assets/desktop-mascot.png'
+import mascot from '../assets/gorilla1.png'
 import styles from './App.module.css'
 
 interface SettingsProps {
@@ -24,7 +24,7 @@ export function Settings({ api, snapshot, busy, active, language, setLanguage, c
     { id: 'pixelated', name: 'Pixelated', detail: 'Retro focus' },
     { id: 'minimalist', name: 'Minimalist', detail: 'Calm and clear' },
     { id: 'neo-brutalist', name: 'Neo-brutalist', detail: 'Bold contrast' },
-    { id: 'playful', name: 'Playful', detail: 'A little companion' },
+    { id: 'gorilla', name: 'Gorilla', detail: 'Jungle companion' },
   ]
   const [feedbackMessage, setFeedbackMessage] = useState('')
   return (
@@ -42,7 +42,7 @@ export function Settings({ api, snapshot, busy, active, language, setLanguage, c
             onClick={() => { void command(() => api.setSettings({ theme: theme.id }), 'Could not save the theme.') }}>
             <span className={styles.themeSwatch} aria-hidden="true">
               <span /><span /><span />
-              {theme.id === 'playful' && <img src={mascot} alt="" />}
+              {theme.id === 'gorilla' && <img src={mascot} alt="" />}
             </span>
             <span className={styles.themeChoiceText}><strong>{theme.name}</strong><small>{theme.detail}</small></span>
             <span className={styles.themeCheck} aria-hidden="true">✓</span>

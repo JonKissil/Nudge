@@ -51,7 +51,7 @@ export function Overlay() {
   const visible = state && !['IDLE', 'SETUP', 'ENDED'].includes(state.pill.state)
   return <div className={styles.surface} data-theme={state?.theme ?? 'minimalist'}>
     {visible && <Pill pill={state.pill} now={now} {...controls} />}
-    {state?.nudge && <NudgeCard nudge={state.nudge} {...controls} />}
+    {state?.nudge && <NudgeCard nudge={state.nudge} speaking={state.speaking} {...controls} />}
     {state?.guidance && <GuidanceCard text={state.guidance.text} {...controls} />}
     {state?.arrow && <Arrow arrow={state.arrow} />}
     {state?.notes.map((note) => <StickyNote key={`${note.id}:${note.expiresAt}`} note={note} {...controls} />)}

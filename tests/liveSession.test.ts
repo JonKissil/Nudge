@@ -25,6 +25,34 @@ const handlers: ToolHandlers = {
 }
 
 describe('LiveSessionBridge', () => {
+  it('reports speaking only for study audio and returns to idle on completion, interruption, reconnect, or stop', async () => {
+    const client = new FakeLiveClient()
+    const speaking = vi.fn()
+    const bridge = new LiveSessionBridge(client, handlers, {
+      playAudio: vi.fn(), flushAudio: vi.fn(), resetAudio: vi.fn(), caption: vi.fn(), speaking,
+      userSpeech: vi.fn(), micSet: vi.fn(), connection: vi.fn(), resumptionHandle: vi.fn(), error: vi.fn(),
+    })
+    bridge.warmup()
+    client.emit({ type: 'audio', pcm24Base64: 'cGNt' })
+    expect(speaking).not.toHaveBeenCalled()
+    await bridge.start(context)
+    client.emit({ type: 'transcription', text: 'A caption alone is not speech.' })
+    expect(speaking).not.toHaveBeenCalled()
+    client.emit({ type: 'audio', pcm24Base64: 'cGNt' })
+    client.emit({ type: 'audio', pcm24Base64: 'cGNt' })
+    expect(speaking.mock.calls).toEqual([[true]])
+    client.emit({ type: 'generation-complete' })
+    client.emit({ type: 'audio', pcm24Base64: 'cGNt' })
+    client.emit({ type: 'interrupted' })
+    client.emit({ type: 'audio', pcm24Base64: 'cGNt' })
+    client.emit({ type: 'connection', state: 'reconnecting' })
+    client.emit({ type: 'audio', pcm24Base64: 'cGNt' })
+    await bridge.stop()
+    client.emit({ type: 'audio', pcm24Base64: 'cGNt' })
+    expect(speaking.mock.calls).toEqual([[true], [false], [true], [false], [true], [false], [true], [false]])
+    bridge.dispose()
+  })
+
   it('warms at boot while blocking media, speech, and tool actions until a study starts', async () => {
     const client = new FakeLiveClient()
     const sinks = {
@@ -129,13 +157,17 @@ describe('LiveSessionBridge', () => {
     const client = new FakeLiveClient()
     const sinks = {
       playAudio: vi.fn(), flushAudio: vi.fn(), resetAudio: vi.fn(),
-      caption: vi.fn(), userSpeech: vi.fn(), micSet: vi.fn(),
+      caption: vi.fn(), userSpeech: vi.fn(), micSet: vi.fn(), speaking: vi.fn(),
       connection: vi.fn(), resumptionHandle: vi.fn(), error: vi.fn(),
     }
     const bridge = new LiveSessionBridge(client, handlers, sinks)
     await bridge.start(context)
     bridge.setMicOpen(true)
+    client.emit({ type: 'audio', pcm24Base64: 'before-quiet' })
+    expect(sinks.speaking).toHaveBeenLastCalledWith(true)
+    sinks.playAudio.mockClear()
     bridge.setQuietMode(true)
+    expect(sinks.speaking).toHaveBeenLastCalledWith(false)
     expect(sinks.micSet).toHaveBeenLastCalledWith(false)
     expect(sinks.flushAudio).toHaveBeenCalledOnce()
     bridge.setMicOpen(true)
@@ -149,11 +181,13 @@ describe('LiveSessionBridge', () => {
     await vi.waitFor(() => expect(client.toolResponses).toHaveLength(1))
     expect(client.audioChunks).toEqual([])
     expect(sinks.playAudio).not.toHaveBeenCalled()
+    expect(sinks.speaking.mock.calls).toEqual([[true], [false]])
     expect(sinks.caption).toHaveBeenCalledWith('One small step is pinned.')
     expect(client.toolResponses[0]).toMatchObject({ id: 'pin-1', response: { ok: true } })
     bridge.setQuietMode(false)
     client.emit({ type: 'audio', pcm24Base64: 'voice-pcm' })
     expect(sinks.playAudio).toHaveBeenCalledWith('voice-pcm')
+    expect(sinks.speaking).toHaveBeenLastCalledWith(true)
     await bridge.stop()
     bridge.dispose()
   })

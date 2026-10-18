@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import type { Theme } from '../shared/types'
 
 const controlBackground: Record<Theme, string> = {
-  pixelated: '#dcecc9', minimalist: '#f5f4ef', 'neo-brutalist': '#ffe87a', playful: '#f7f0fa',
+  pixelated: '#dcecc9', minimalist: '#f5f4ef', 'neo-brutalist': '#ffe87a', gorilla: '#102f25',
 }
 
 export function setControlTheme(window: BrowserWindow, theme: Theme): void {

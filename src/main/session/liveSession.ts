@@ -7,6 +7,7 @@ export interface LiveSessionSinks {
   flushAudio(): void
   resetAudio(): void
   caption(text: string): void
+  speaking?(active: boolean): void
   userSpeech(text: string): void
   micSet(open: boolean): void
   connection(state: 'connected' | 'reconnecting' | 'degraded' | 'disconnected'): void
@@ -23,6 +24,7 @@ export class LiveSessionBridge {
   private startIntent = 0
   private micOpen = false
   private quietMode = false
+  private modelSpeaking = false
   private stopping?: Promise<void>
   private readonly unsubscribe: () => void
 
@@ -74,6 +76,7 @@ export class LiveSessionBridge {
     this.quietMode = enabled
     if (enabled) {
       this.setMicOpen(false)
+      this.setSpeaking(false)
       this.sinks.flushAudio()
     }
   }
@@ -94,6 +97,7 @@ export class LiveSessionBridge {
     this.active = false
     this.warming = false
     this.sessionId += 1
+    this.setSpeaking(false)
     this.sinks.resetAudio()
     this.sinks.caption('')
     const stopping = (async () => {
@@ -107,6 +111,12 @@ export class LiveSessionBridge {
   }
 
   dispose(): void { this.disposed = true; void this.stop(); this.unsubscribe() }
+
+  private setSpeaking(active: boolean): void {
+    if (this.modelSpeaking === active) return
+    this.modelSpeaking = active
+    this.sinks.speaking?.(active)
+  }
 
   private async onEvent(event: LiveEvent): Promise<void> {
     if (!this.active) {
@@ -123,6 +133,7 @@ export class LiveSessionBridge {
     const sessionId = this.sessionId
     switch (event.type) {
       case 'connection':
+        if (event.state !== 'connected') this.setSpeaking(false)
         if (event.state === 'reconnecting' || event.state === 'degraded') {
           this.sinks.flushAudio()
           this.sinks.caption('')
@@ -136,11 +147,16 @@ export class LiveSessionBridge {
           if (this.active && this.sessionId === sessionId) this.client.sendToolResponse(response)
         }
         break
-      case 'audio': if (!this.quietMode) this.sinks.playAudio(event.pcm24Base64); break
+      case 'audio':
+        if (!this.quietMode) {
+          this.setSpeaking(true)
+          this.sinks.playAudio(event.pcm24Base64)
+        }
+        break
       case 'transcription': this.sinks.caption(event.text); break
       case 'user-transcription': this.sinks.userSpeech(event.text); break
-      case 'interrupted': this.sinks.flushAudio(); this.sinks.caption(''); break
-      case 'generation-complete': break
+      case 'interrupted': this.setSpeaking(false); this.sinks.flushAudio(); this.sinks.caption(''); break
+      case 'generation-complete': this.setSpeaking(false); break
       case 'check-complete':
         try { await this.handlers.reportStatusFailed?.(event.checkId) }
         catch { this.sinks.error('Screen check completion failed.') }

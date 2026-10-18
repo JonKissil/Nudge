@@ -38,7 +38,7 @@ export const StatusSchema = z.strictObject({
   confidence: unit,
 })
 export type Status = z.infer<typeof StatusSchema>
-export const ThemeSchema = z.enum(['pixelated', 'minimalist', 'neo-brutalist', 'playful'])
+export const ThemeSchema = z.enum(['pixelated', 'minimalist', 'neo-brutalist', 'gorilla'])
 export type Theme = z.infer<typeof ThemeSchema>
 export const SettingsSchema = z.strictObject({
   demoMode: z.boolean(), showHud: z.boolean(), theme: ThemeSchema.default('minimalist'),
@@ -94,6 +94,7 @@ export const OverlayStateSchema = z.strictObject({
   pill: PillStateSchema, nudge: NudgeViewSchema.optional(), arrow: ArrowViewSchema.optional(),
   guidance: NudgeViewSchema.optional(),
   notes: z.array(NoteViewSchema), caption: z.string().optional(), theme: ThemeSchema.optional(),
+  speaking: z.boolean().optional(),
 })
 export type OverlayState = z.infer<typeof OverlayStateSchema>
 export const OverlayActionSchema = z.strictObject({

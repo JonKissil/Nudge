@@ -10,6 +10,7 @@ export function createOverlayPreview(preview: OverlayPreview, now: number): Over
   if (preview === 'nudge' || preview === 'all') {
     state.pill.state = 'CHECKIN'
     state.nudge = { text: 'Hey, quick check — still with the essay, or taking a break?' }
+    state.speaking = true
   }
   if (preview === 'guide' || preview === 'all') {
     state.arrow = { x: 0.3, y: 0.12, label: 'Your essay’s here' }
