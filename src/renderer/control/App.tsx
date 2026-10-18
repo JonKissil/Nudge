@@ -5,7 +5,7 @@ import type { SessionSnapshot } from '../../shared/types'
 import { DEMO_TASK, LOCK_WINDOW_COUNTDOWN_MS } from '../../shared/config'
 import type { LanguageCode } from '../../shared/languages'
 import { Settings } from './Settings'
-import mascot from '../assets/desktop-mascot.png'
+import mascot from '../assets/gorilla1.png'
 import styles from './App.module.css'
 
 function getApi(): ControlApi {
@@ -97,7 +97,7 @@ export function App() {
       <header className={styles.header}>
         {page === 'home' ? <>
           <span className={styles.brand}>
-            {snapshot?.settings.theme === 'playful' && <img src={mascot} alt="" className={styles.brandMascot} />}
+            {snapshot?.settings.theme === 'gorilla' && <img src={mascot} alt="" className={styles.brandMascot} />}
             Nudge
           </span>
           <button ref={settingsButton} type="button" className={styles.navigation} aria-label="Settings"
@@ -136,7 +136,7 @@ export function App() {
         </div>}
       </form> : <Settings api={getApi()} snapshot={snapshot} busy={busy} active={active}
         command={command} setDemoMode={setDemoMode} language={language} setLanguage={setLanguage} />}
-      {page === 'home' && ['IDLE', 'ENDED'].includes(snapshot?.state ?? '') && snapshot?.settings.theme === 'playful' &&
+      {page === 'home' && ['IDLE', 'ENDED'].includes(snapshot?.state ?? '') && snapshot?.settings.theme === 'gorilla' &&
         <img src={mascot} alt="" className={styles.homeMascot} />}
       {error && <p role="alert" className={styles.error}>{error}</p>}
       </div>

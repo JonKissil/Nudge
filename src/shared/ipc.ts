@@ -50,6 +50,7 @@ export const IpcSchemas = {
   [IPC.sessionEnd]: EmptySchema,
   [IPC.sessionPauseToggle]: EmptySchema,
   [IPC.sessionSnapshot]: SessionSnapshotSchema,
+  // Snapshot defaults must not turn an unrelated settings patch into a theme reset.
   [IPC.settingsSet]: SettingsSchema.partial().safeExtend({ theme: ThemeSchema.optional() }),
   [IPC.graceReset]: EmptySchema,
   [IPC.graceFeedback]: TimingFeedbackSchema,

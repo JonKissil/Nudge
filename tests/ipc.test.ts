@@ -45,6 +45,8 @@ describe('IPC boundaries', () => {
     const schema = IpcSchemas[IPC.overlayState]
     const state = { pill: { state: 'FOCUSED', offline: false }, notes: [] }
     expect(schema.safeParse(state).success).toBe(true)
+    expect(schema.safeParse({ ...state, speaking: true }).success).toBe(true)
+    expect(schema.safeParse({ ...state, speaking: 'true' }).success).toBe(false)
     expect(schema.safeParse({ ...state, arrow: { x: 1.1, y: 0.3, label: 'Your essay' } }).success).toBe(false)
     expect(schema.safeParse({ ...state, guidance: { text: 'Click: History essay' } }).success).toBe(true)
     expect(schema.safeParse({ ...state, guidance: { text: '' } }).success).toBe(false)
@@ -53,10 +55,11 @@ describe('IPC boundaries', () => {
   it('keeps empty commands and settings strict', () => {
     expect(IpcSchemas[IPC.sessionEnd].safeParse({ code: 'unexpected' }).success).toBe(false)
     expect(IpcSchemas[IPC.settingsSet].safeParse({ demoMode: true }).success).toBe(true)
-    for (const theme of ['pixelated', 'minimalist', 'neo-brutalist', 'playful']) {
+    for (const theme of ['pixelated', 'minimalist', 'neo-brutalist', 'gorilla']) {
       expect(IpcSchemas[IPC.settingsSet].safeParse({ theme }).success).toBe(true)
     }
     expect(IpcSchemas[IPC.settingsSet].safeParse({ theme: 'unknown' }).success).toBe(false)
+    expect(IpcSchemas[IPC.settingsSet].parse({})).toEqual({})
     expect(IpcSchemas[IPC.settingsSet].parse({ showHud: true })).toEqual({ showHud: true })
     expect(IpcSchemas[IPC.settingsSet].parse({ quietMode: true })).toEqual({ quietMode: true })
     expect(IpcSchemas[IPC.settingsSet].safeParse({ quietMode: 'yes' }).success).toBe(false)
@@ -86,6 +89,7 @@ describe('IPC boundaries', () => {
       stats: { framesPerMinute: 0, resumptionHandleAgeMs: null, transitions: [], logs: [] },
     }
     expect(SessionSnapshotSchema.safeParse(snapshot).success).toBe(true)
+    expect(SessionSnapshotSchema.parse(snapshot).settings.theme).toBe('minimalist')
     expect(SessionSnapshotSchema.safeParse({ ...snapshot, state: 'UNKNOWN' }).success).toBe(false)
     expect(SessionSnapshotSchema.safeParse({
       ...snapshot, stats: { ...snapshot.stats, transitions: Array.from({ length: 11 }, () => ({ from: 'IDLE', to: 'SETUP', at: 1 })) },
