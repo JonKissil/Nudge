@@ -15,6 +15,10 @@ class NudgeSpeakerProcessor extends AudioWorkletProcessor {
     this.lastOutput = 0
     this.tail = 0
     this.tailValue = 0
+    this.playbackId = 0
+    this.playedSamples = 0
+    this.reportedSamples = 0
+    this.reportInterval = 0
     this.port.onmessage = ({ data }) => {
       if (data?.type === 'clear') {
         this.chunks = []
@@ -25,7 +29,11 @@ class NudgeSpeakerProcessor extends AudioWorkletProcessor {
         this.gain = 0
         this.tail = this.fadeSamples
         this.tailValue = this.lastOutput
+        this.playedSamples = 0
+        this.reportedSamples = 0
+        this.reportInterval = 0
       } else if (data?.type === 'audio' && data.samples instanceof ArrayBuffer) {
+        this.playbackId = data.playbackId ?? 0
         const samples = new Int16Array(data.samples)
         if (samples.length > 0) {
           this.chunks.push(samples)
@@ -41,6 +49,7 @@ class NudgeSpeakerProcessor extends AudioWorkletProcessor {
     const sample = chunk[this.offset] / 32768
     this.offset += 1
     this.buffered -= 1
+    this.playedSamples += 1
     if (this.offset === chunk.length) {
       this.chunks.shift()
       this.offset = 0
@@ -79,6 +88,13 @@ class NudgeSpeakerProcessor extends AudioWorkletProcessor {
       }
       output[i] = value
       this.lastOutput = value
+    }
+    this.reportInterval += output.length
+    if ((this.reportInterval >= sampleRate / 10 || this.buffered === 0)
+      && this.playedSamples !== this.reportedSamples) {
+      this.port.postMessage({ type: 'progress', playbackId: this.playbackId, playedSamples: this.playedSamples })
+      this.reportedSamples = this.playedSamples
+      this.reportInterval = 0
     }
     return true
   }

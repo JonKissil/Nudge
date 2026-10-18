@@ -8,6 +8,7 @@ import { observeGraceReturn } from './graceLearning'
 import { selectHabitGraceMs, type HabitEvent, type TimingFeedback } from '../../shared/habits'
 import { observeHabitEpisode, type HabitEpisode } from './habitEvents'
 import { HabitReviewer } from './habitReview'
+import { PlaybackCaptions } from './captions'
 import { matchWindow } from '../drift/matchWindow'
 import { EmptySchema, IPC, IpcSchemas, type IpcChannel, type IpcPayload } from '../../shared/ipc'
 import { ActionResultSchema, MicTestResultSchema, OverlayStateSchema, SessionSnapshotSchema, WindowInfoSchema } from '../../shared/types'
@@ -69,6 +70,7 @@ export function registerScaffoldIpc(
   let expiryTimer: ReturnType<typeof setTimeout> | undefined
   app.once('before-quit', () => { clearTimeout(expiryTimer) })
   let caption = ''
+  let playbackId = 0
   let modelSpeaking = false
   let nudgeVisible = false
   let guidance: Guidance = {}
@@ -106,7 +108,11 @@ export function registerScaffoldIpc(
       notes: sessionNotes, caption, speaking: modelSpeaking && snapshot.state !== 'PAUSED',
     })
     const isPreviewing = snapshot.state === 'IDLE' || snapshot.state === 'ENDED'
-    const overlay = { ...(isPreviewing ? previewOverlay : sessionOverlay), theme: snapshot.settings.theme }
+    const view = isPreviewing ? previewOverlay : sessionOverlay
+    const overlay = { ...view, theme: snapshot.settings.theme,
+      pill: { ...view.pill, quietMode: snapshot.settings.quietMode },
+      caption: snapshot.settings.quietMode ? undefined : view.caption,
+      speaking: !snapshot.settings.quietMode && view.speaking }
     const interactiveKey = `${overlay.pill.state}|${Boolean(overlay.nudge)}|${Boolean(overlay.guidance)}|${overlay.notes.map((note) => note.id).join(',')}`
     if (interactiveKey !== lastInteractiveKey) {
       windows.overlay.setIgnoreMouseEvents(true, { forward: true })
@@ -132,6 +138,17 @@ export function registerScaffoldIpc(
       publish()
     }, Math.max(0, Math.min(...deadlines) - Date.now()))
   }
+
+  const captions = new PlaybackCaptions()
+  const syncCaption = (): void => {
+    const next = captions.tick(Date.now())
+    if (caption !== next) { caption = next; publish() }
+  }
+  const resetCaptions = (): void => {
+    playbackId++; captions.reset(); syncCaption()
+  }
+  const captionTimer = setInterval(syncCaption, 100).unref()
+  app.once('before-quit', () => { clearInterval(captionTimer) })
 
   const log = (message: string): void => {
     snapshot = { ...snapshot, stats: { ...snapshot.stats, logs: [...snapshot.stats.logs, message].slice(-50) } }
@@ -162,7 +179,13 @@ export function registerScaffoldIpc(
       publish()
     },
     setCheckinActive: (active) => live.setCheckinActive(active),
-    setCaptureRunning: (running) => perception.setCaptureRunning(running),
+    setCaptureRunning: (running) => {
+      if (!running) {
+        resetCaptions()
+        getWindows()?.media.webContents.send(IPC.audioFlush, {})
+      }
+      perception.setCaptureRunning(running)
+    },
     showNudge: (show) => {
       nudgeVisible = show
       if (show && (snapshot.settings.quietMode || snapshot.conn === 'degraded')) {
@@ -276,11 +299,23 @@ export function registerScaffoldIpc(
       return recordTimingFeedback(feedback)
     },
   }, {
-    playAudio: (pcm24Base64) => getWindows()?.media.webContents.send(IPC.audioPlay, { pcm24Base64 }),
-    flushAudio: () => getWindows()?.media.webContents.send(IPC.audioFlush, {}),
-    resetAudio: () => getWindows()?.media.webContents.send(IPC.audioReset, {}),
-    caption: (text) => { caption = text; publish() },
-    speaking: (active) => { modelSpeaking = active; publish() },
+    playAudio: (pcm24Base64) => {
+      if (snapshot.state === 'PAUSED') return
+      captions.audio(Buffer.from(pcm24Base64, 'base64').length / 2)
+      getWindows()?.media.webContents.send(IPC.audioPlay, { pcm24Base64, playbackId })
+    },
+    flushAudio: () => { resetCaptions(); getWindows()?.media.webContents.send(IPC.audioFlush, {}) },
+    resetAudio: () => { resetCaptions(); getWindows()?.media.webContents.send(IPC.audioReset, {}) },
+    caption: (text) => {
+      if (snapshot.state === 'PAUSED') return
+      if (text) captions.append(text); else resetCaptions()
+      syncCaption()
+    },
+    speaking: (active) => {
+      modelSpeaking = active
+      if (active) captions.begin(); else captions.finish()
+      publish()
+    },
     userSpeech: () => { lastStudentSpeechAt = Date.now(); habitReviewer.cancel(); void study.dispatch({ type: 'USER_SPEECH' }) },
     micSet: (open) => getWindows()?.media.webContents.send(IPC.micSet, { open }),
     connection: (conn) => {
@@ -546,7 +581,7 @@ export function registerScaffoldIpc(
   // Validate all incoming event channels before forwarding media or overlay events.
   for (const channel of [
     IPC.frame, IPC.frameFull, IPC.micChunk, IPC.overlayAction, IPC.overlayHover, IPC.overlayReady,
-    IPC.mediaReady, IPC.captureStatus, IPC.micTestResult,
+    IPC.mediaReady, IPC.captureStatus, IPC.micTestResult, IPC.audioProgress,
   ]) {
     ipcMain.on(channel, (event, payload: unknown) => {
       const kind = channel.startsWith('overlay:') ? 'overlay' : 'media'
@@ -578,6 +613,13 @@ export function registerScaffoldIpc(
         if (perception.acceptFrame()) { live.sendFrame(frame.jpegBase64); publish() }
       } else if (channel === IPC.micChunk) {
         live.sendMicChunk(IpcSchemas[IPC.micChunk].parse(parsed.data).pcm16Base64)
+      } else if (channel === IPC.audioProgress) {
+        const progress = IpcSchemas[IPC.audioProgress].parse(parsed.data)
+        if (progress.playbackId === playbackId && !snapshot.settings.quietMode
+          && !['IDLE', 'SETUP', 'PAUSED', 'ENDED'].includes(snapshot.state)) {
+          captions.playback(progress.playedSamples)
+          syncCaption()
+        }
       } else if (channel === IPC.overlayAction) {
         const action = IpcSchemas[IPC.overlayAction].parse(parsed.data)
         if ((snapshot.state === 'IDLE' || snapshot.state === 'ENDED')
@@ -620,7 +662,10 @@ export function registerScaffoldIpc(
       return () => { snapshotListeners.delete(listener) }
     },
     requestFullFrame: () => perception.requestFullFrame(),
-    dispose: () => { live.dispose(); document.reset(); returns.dispose(); ocr.dispose(); recovery.dispose(); perception.dispose() },
+    dispose: () => {
+      clearInterval(captionTimer)
+      live.dispose(); document.reset(); returns.dispose(); ocr.dispose(); recovery.dispose(); perception.dispose()
+    },
     togglePushToTalk: () => {
       if (['IDLE', 'SETUP', 'PAUSED', 'ENDED'].includes(study.state.phase)) {
         return { ok: false, error: 'Start or resume a study session to use push-to-talk.' }

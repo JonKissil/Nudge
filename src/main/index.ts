@@ -58,7 +58,7 @@ async function bootstrap(): Promise<void> {
       windows.control.hide()
     })
     // A resident menu-bar app does not need a second icon in the Dock.
-    app.dock?.hide()
+    await app.dock?.hide()
   } else {
     windows.control.on('closed', () => { app.quit() })
   }

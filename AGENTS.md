@@ -25,7 +25,7 @@ A macOS desktop app that acts as a real-time AI "body double" for students with 
 - **Never shame.** Breaks are allowed. No failure counts, streak-breaking, or "you wasted X minutes."
 - **The student is always in control.** Pause, snooze, and "this is for my task" are always one action away.
 - **Helping them come back beats punishing them for leaving.** Never block, close, or mute their apps.
-- **One thing at a time.** Voice turns are one or two sentences. Captions are always on.
+- **One thing at a time.** Voice turns are one or two sentences. Captions accompany speech unless Quiet Mode is on.
 - **Never do their work.** Next-step notes are prompts or questions, never text to copy.
 
 ### Hackathon context
@@ -82,7 +82,7 @@ Generality (Windows, other browsers, multi-monitor) comes later and is out of sc
   when the student talks, or on `[USER_RETURNED]`.
 - **Quiet Mode** is a saved, live-toggleable preference. It keeps the mic closed, flushes and suppresses model
   speech, skips spoken greeting/nudge turns, and uses local chimes with the overlay controls. Re-entry still
-  sends `[USER_RETURNED]` so the model can pin a next step; any generated speech is discarded while captions remain.
+  sends `[USER_RETURNED]` so the model can pin a next step; generated speech and captions are discarded.
 - **The app owns time.** Grace periods, snoozes, and nudge rate limits run in deterministic code.
   Requested habit learning allows Gemini to recommend next-session grace timing; local evidence checks
   and bounds decide whether to accept it. The active session's timing remains fixed.
@@ -482,7 +482,10 @@ export const DEMO = { ...DEFAULTS, tickMs: 4_000, graceMs: 15_000, checkinSilenc
     The buttons dispatch the same events as the tools, so everything works without voice.
   - `Arrow`: animated arrow toward a screen point, with a label.
   - `StickyNote`: anchored to a box, slightly offset into the right margin. Dismissible. Auto-fades after 3 minutes.
-  - `Captions`: the model's current utterance (from output transcription), bottom-center.
+  - `Captions`: bottom-center, short readable cues accumulated from output transcription and paced by
+    actual PCM samples consumed by the speaker worklet. Hold each cue for at least 1.8 seconds, never
+    skip unread cues, and hold the last cue for 2.8 seconds. Clear the queue on pause, interruption,
+    reconnect, End, or enabling Quiet Mode; stale playback IDs cannot restore cleared captions.
 - Coordinates arrive from main as **normalized 0–1 relative to the display**; the overlay multiplies by its own size.
   This avoids Retina scale-factor bugs.
 - Respect `prefers-reduced-motion`: no bouncing arrows; use a static highlight instead.
@@ -556,7 +559,7 @@ export const DEMO = { ...DEFAULTS, tickMs: 4_000, graceMs: 15_000, checkinSilenc
   runs dry or refills, and clear the worklet queue on `interrupted`. On study-session end, close the audio context and create
   a fresh one for the next session.
 - **Quiet Mode:** close the mic and flush current speech immediately when enabled, discard later model audio,
-  and play local nudge/return chimes through the media window. Captions and on-screen controls stay available.
+  and play local nudge/return chimes through the media window. Clear and suppress captions; on-screen controls stay available.
 - **Recommend headphones for the demo** to prevent echo; barge-in still works.
 
 ## 13. IPC contract (`src/shared/types.ts`)
@@ -574,7 +577,8 @@ an encoding operation cancelled by Pause/End.
 'mic:chunk'      { pcm16Base64: string }
 // main → media
 'mic:set'        { open: boolean }
-'audio:play'     { pcm24Base64: string }
+'audio:play'     { pcm24Base64: string; playbackId: number }
+'audio:progress' { playbackId: number; playedSamples: number }          // media → main, consumed PCM only
 'audio:flush'    {}
 'audio:reset'    {}                                                // close playback on session end
 'audio:chime'    { cue: 'nudge' | 'return' }

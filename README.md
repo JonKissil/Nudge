@@ -43,9 +43,13 @@ Disable Gemini reviews to keep the local percentile algorithm; disable learning 
 actions during a check-in. The microphone stays off except during a check-in or push-to-talk.
 
 Turn on **Settings → Quiet Mode** before or during a session for chimes and on-screen prompts without
-spoken replies. It closes the microphone, stops any speech already playing, and saves your choice for
+spoken replies or captions. It closes the microphone, stops any speech already playing, and saves your choice for
 future sessions. The check-in card still offers **Take me back**, **Show me how**, **5 more min**, and
 **This is for my task**. A second chime accompanies the next-step note when you return.
+
+When speech is enabled, captions accumulate into short cues and advance with speaker playback.
+Each cue stays visible for at least 1.8 seconds; the final cue stays for 2.8 seconds after it is reached.
+Pause, interruption, and Quiet Mode clear queued captions immediately.
 
 Keyboard shortcuts: `⌘⇧Space` toggles push-to-talk when Quiet Mode is off, `⌘⇧P` pauses or resumes,
 and `⌘⇧D` toggles the live status display.

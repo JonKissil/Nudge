@@ -10,12 +10,14 @@ export function Media() {
     if (window.nudge.kind !== 'media') return
     const api = window.nudge
     const mic = new MicCapture((pcm16Base64) => api.sendMicChunk({ pcm16Base64 }))
-    const player = new AudioPlayer()
+    const player = new AudioPlayer((progress) => api.sendAudioProgress(progress))
     const capture = new ScreenCapture(api)
     const stopMicTest = attachMicTest(api)
     const unsubscribe = [
       api.onMicSet(({ open }) => { void mic.setOpen(open).catch(() => console.error('Microphone unavailable')) }),
-      api.onAudioPlay(({ pcm24Base64 }) => { void player.play(pcm24Base64).catch(() => console.error('Audio playback unavailable')) }),
+      api.onAudioPlay(({ pcm24Base64, playbackId }) => {
+        void player.play(pcm24Base64, playbackId).catch(() => console.error('Audio playback unavailable'))
+      }),
       api.onAudioFlush(() => player.flush()),
       api.onAudioReset(() => player.close()),
       api.onAudioChime(({ cue }) => { void player.chime(cue).catch(() => console.error('Chime unavailable')) }),

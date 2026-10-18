@@ -153,7 +153,7 @@ describe('LiveSessionBridge', () => {
     bridge.dispose()
   })
 
-  it('stops speech immediately in Quiet Mode while keeping captions and tool calls', async () => {
+  it('clears speech/captions immediately in Quiet Mode and preserves tool calls', async () => {
     const client = new FakeLiveClient()
     const sinks = {
       playAudio: vi.fn(), flushAudio: vi.fn(), resetAudio: vi.fn(),
@@ -170,6 +170,8 @@ describe('LiveSessionBridge', () => {
     expect(sinks.speaking).toHaveBeenLastCalledWith(false)
     expect(sinks.micSet).toHaveBeenLastCalledWith(false)
     expect(sinks.flushAudio).toHaveBeenCalledOnce()
+    expect(sinks.caption).toHaveBeenLastCalledWith('')
+    sinks.caption.mockClear()
     bridge.setMicOpen(true)
     bridge.sendMicChunk('private-audio')
     client.script([
@@ -182,7 +184,7 @@ describe('LiveSessionBridge', () => {
     expect(client.audioChunks).toEqual([])
     expect(sinks.playAudio).not.toHaveBeenCalled()
     expect(sinks.speaking.mock.calls).toEqual([[true], [false]])
-    expect(sinks.caption).toHaveBeenCalledWith('One small step is pinned.')
+    expect(sinks.caption).not.toHaveBeenCalled()
     expect(client.toolResponses[0]).toMatchObject({ id: 'pin-1', response: { ok: true } })
     bridge.setQuietMode(false)
     client.emit({ type: 'audio', pcm24Base64: 'voice-pcm' })

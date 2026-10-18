@@ -77,10 +77,13 @@ export class AudioPlayer {
   private worklet?: AudioWorkletNode
   private generation = 0
   private queue: Promise<void> = Promise.resolve()
+  private playbackId?: number
 
-  play(pcm24Base64: string): Promise<void> {
+  constructor(private readonly onProgress?: (progress: { playbackId: number; playedSamples: number }) => void) {}
+
+  play(pcm24Base64: string, playbackId = 0): Promise<void> {
     const generation = this.generation
-    const queued = this.queue.then(() => this.enqueue(pcm24Base64, generation))
+    const queued = this.queue.then(() => this.enqueue(pcm24Base64, generation, playbackId))
     this.queue = queued.catch(() => {})
     return queued
   }
@@ -107,7 +110,7 @@ export class AudioPlayer {
     }
   }
 
-  private async enqueue(pcm24Base64: string, generation: number): Promise<void> {
+  private async enqueue(pcm24Base64: string, generation: number, playbackId: number): Promise<void> {
     if (generation !== this.generation) return
     const raw = atob(pcm24Base64)
     if (raw.length % 2 !== 0) throw new Error('Invalid 16-bit PCM audio chunk')
@@ -119,7 +122,8 @@ export class AudioPlayer {
     }
     const worklet = await this.ensureWorklet(generation)
     if (!worklet || generation !== this.generation) return
-    worklet.port.postMessage({ type: 'audio', samples: pcm.buffer }, [pcm.buffer])
+    this.playbackId = playbackId
+    worklet.port.postMessage({ type: 'audio', samples: pcm.buffer, playbackId }, [pcm.buffer])
   }
 
   private async ensureWorklet(generation: number): Promise<AudioWorkletNode | undefined> {
@@ -132,6 +136,13 @@ export class AudioPlayer {
     await context.audioWorklet.addModule(new URL('./speaker-processor.js', import.meta.url).href)
     if (generation !== this.generation || this.context !== context) return undefined
     const worklet = new AudioWorkletNode(context, 'nudge-speaker', { outputChannelCount: [1] })
+    worklet.port.onmessage = ({ data }: MessageEvent<unknown>) => {
+      const playbackId = this.playbackId
+      if (!data || typeof data !== 'object' || !('playbackId' in data) || !('playedSamples' in data)
+        || playbackId === undefined || data.playbackId !== playbackId || typeof data.playedSamples !== 'number'
+        || !Number.isSafeInteger(data.playedSamples) || data.playedSamples < 0) return
+      this.onProgress?.({ playbackId, playedSamples: data.playedSamples })
+    }
     worklet.connect(context.destination)
     this.worklet = worklet
     await context.resume()
@@ -140,6 +151,7 @@ export class AudioPlayer {
 
   flush(): void {
     this.generation += 1
+    this.playbackId = undefined
     this.worklet?.port.postMessage({ type: 'clear' })
   }
 

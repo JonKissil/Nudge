@@ -74,8 +74,9 @@ completed components; M8 has a draft deck and script.
 - [x] Continuous `frame` IPC delivery to Live: fresh images travel with CHECK text, other frames use
   realtime video; turn queue prevents complete turns during model speech (real frame flow + transport tests)
 - [x] Resumption handle storage and GoAway → resume with buffered media/turns (real handle received; resume path tested with mocked transport)
-- [ ] Verify unexpected-close backoff, failed resumption → `[CONTEXT_RESTORE]`, and exhausted-retry fallback
-  (implemented; failure-path/live acceptance remains open)
+- [x] Verify unexpected-close backoff, failed resumption → `[CONTEXT_RESTORE]`, and exhausted-retry fallback
+  (2026-10-18: actual socket termination/recovery; injected resume failures followed by a real fresh
+  connection/context restore; simulated API outage exhausted retries and retained offline controls)
 - [x] `prompts.ts` system instruction + turn templates (§6.4, §6.6)
 - [x] Requested session language picker: selected BCP-47 code reaches Live input transcription config
   and the spoken-language instruction (boundary, reducer, and transport tests; multilingual audio still needs a listening check)
@@ -83,9 +84,12 @@ completed components; M8 has a draft deck and script.
   (all ten rendered choices verified; typecheck, 138 tests, lint, build, and dev launch passed)
 - [x] `tools.ts`: NON_BLOCKING declarations, zod validation, state-machine handlers, and response scheduling (SILENT verified live)
 - [x] Media window audio: gated 16 kHz mic worklet and 24 kHz playback; interruption flush routed (Terminal voice check + bridge tests)
-- [x] Output transcription → `Captions` (bridge tests, overlay preview, and real output transcription)
+- [x] Output transcription → `Captions`: readable cues paced by consumed speaker PCM; cleared/suppressed
+  in Quiet Mode (pure/bridge/worklet regressions, actual playback-clock test, and native UI verified)
 - [x] Manual voice check: heard `[SESSION_START]`, used ⌘⇧Space, and heard the correct task answer (TextEdit, Terminal launch; 2026-10-17)
-- [ ] Run a real 15-minute session and verify at least one reconnect in the HUD
+- [x] Run a real 15-minute session and verify at least one reconnect in the HUD
+  (2026-10-18: real Safari/Gemini session survived capture, demo actions, pause/resume,
+  and an actual WebSocket termination followed by recovery)
 - **Accept:** start a session → hear the `[SESSION_START]` greeting; push-to-talk "what am I working on?" gets a
   correct one-sentence answer; a 15-minute session survives at least one reconnect (check the HUD).
 
@@ -102,6 +106,8 @@ completed components; M8 has a draft deck and script.
 - [x] `effects.ts` + `session.ts`: classification ticks, window-change observations, grace timer, and nudge rate limit (tests + real CHECK flow)
 - [x] `[NUDGE]` → card/mic effects → `CHECKIN`; silence → snooze (FakeLiveClient tests; real state transitions recorded)
 - [x] Overlay buttons dispatch through the same engine as tools (routing/tests complete; actual return/allow verified in M5/M6)
+- [x] Automated five-minute on-task silence observation with real Safari capture/Gemini:
+  continuously connected, frames advancing, mic closed, and zero additional playback chunks (2026-10-18)
 - [ ] Manual DEMO_MODE acceptance: verify 5+ minutes of on-task silence, the ~15s YouTube nudge's voice/card,
   and allowing that video through “This is for my task”
 - **Accept (DEMO_MODE):** on-task stays silent for 5+ minutes; YouTube music triggers a nudge after ~15s; "this is for my task" stops nudges for that video.
@@ -139,11 +145,12 @@ completed components; M8 has a draft deck and script.
 
 ## ⇄ Integration checkpoint 2 (H18): full demo path
 
-- [x] Automated prerequisites: typecheck, 136 tests, lint, production build, three-renderer dev launch,
+- [x] Automated prerequisites: typecheck, 191 tests, lint, production build, three-renderer dev launch,
   direct-launch permissions, and local microphone probe
 - [x] Three consecutive automated Safari/local-page cycles with real Gemini in one app process:
   greeting → drift → voiced/captioned nudge → return → OCR-anchored question note → guided
-  arrow/return/note → persisted page allowance; three connections and 49 captured frames in the final run
+  arrow/return/note → persisted page allowance; 2026-10-18 rerun: four connections including forced
+  recovery, 210 frames, nine nudges, six notes in 2.002–2.602s, and three saved allowances
 - [x] Screen-check regressions: stale window replies rejected by check ID; missing status calls release
   the pending flag; expired/stalled checks retry/recover; CHECK narration cannot reach playback/captions
 - [ ] Run AGENTS.md §19 steps 1–7 end to end, three times in a row, without restarting the app
@@ -162,6 +169,8 @@ completed components; M8 has a draft deck and script.
   (native geometry, reactivation, setup/countdown, navigation, and layout checks passed in an isolated dev copy)
 - [x] Demo-mode implementation: DEMO params, pre-filled task, HUD, environment flag, and control toggle (configuration tests/UI wiring)
 - [x] Degraded-mode implementation: rules-only judgment, offline pill, chime, and card (rule tests; media/overlay wiring)
+- [x] Automated simulated-API-outage acceptance: retry exhaustion, hard-block drift, chime/card,
+  native return, and fallback note remain usable (real socket termination; no system Wi-Fi changes)
 - [ ] Manual wifi-off acceptance with the connected M5 controls
 - [x] Permission checklist, System Settings links, native mic request, and local three-second mic probe (UI/recorded mic verification)
 - [x] Checklist refresh on focus/visibility and every 3s; distinguish launch-specific trust from denial
@@ -172,6 +181,8 @@ completed components; M8 has a draft deck and script.
   reopen, and quit; icon glows during running/snoozed sessions and dims when paused or stopped
   (Retina assets, real Safari lock/capture, native menu actions, and quit verified)
 - [ ] Polish: pill states, note styling, caption timing, a calm voice choice
+- [x] Requested caption timing: accumulate fragments, use actual speaker progress, keep short cues
+  readable, clear stale playback on pause/interrupt/End, and hide all captions in Quiet Mode
 - [ ] Record a backup demo video of the full path
 - **Accept:** AGENTS.md §19 steps 1–9 all pass on the demo laptop.
 
@@ -186,14 +197,15 @@ completed components; M8 has a draft deck and script.
 
 - [x] Language support
 - [x] Quiet Mode: saved Settings toggle, immediate model-audio cutoff, mic-off check-ins, nudge/return
-  chimes, captions, and a button for guided return (typecheck, automated tests, lint, build, and dev launch verified)
+  chimes, caption suppression, and a button for guided return (typecheck, automated tests, lint, build,
+  dev/native UI, and real quiet drift/return/OCR pin verified)
 - [ ] Quiet Mode listening pass on the demo Mac: confirm no speech during a live nudge or re-entry,
   and confirm both chimes are audible at a gentle volume.
 - [ ] Custom theme support from uploaded jpg or png file (also font support)
 - [x] Several included base themes: Pixelated, Minimalist, Neo-brutalist, and Gorilla
   (selection, overlay styling, saved preference, and partial-settings preservation verified)
 - [x] Requested Gorilla theme: forest/leaf-green controls and overlays, and speech-bubble nudges
-  with the existing three response buttons.
+  with all four response buttons, including Show me how.
   Previously saved Playful selections migrate to Gorilla without losing other settings.
 - [x] Requested Gorilla mascot revision: use the supplied `gorilla1.png` (closed) and `gorilla2.png`
   (open) directly. Home/brand/theme picker use gorilla1; speech alternates both frames, while
@@ -239,6 +251,29 @@ completed components; M8 has a draft deck and script.
 ## Log
 
 <!-- Date/time — lane — what happened / decision / blocker -->
+
+- 2026-10-18 — Caption follow-up: transcription was replacing the visible text as fast as Gemini
+  generated it, ahead of playback. Added a caption queue fed by consumed PCM progress from the
+  speaker worklet, with validated playback IDs to reject stale updates. Short cues hold for at least
+  1.8s and the last holds for 2.8s. Quiet Mode immediately clears speech/captions and suppresses later
+  transcription; the overlay also guards previews and directly supplied quiet caption state. A native
+  six-second PCM/text fixture displayed three seven-word cues 2.027s apart without skipping; mute,
+  late transcription, stale progress after unmute, and real quiet drift → return → OCR pin passed.
+  Typecheck, 191 tests in 38 files, lint, production build, fresh dev launch, and UI checks passed.
+  The intentionally omitted privacy feature was left unchanged. Spoken/listening checks remain deferred.
+
+- 2026-10-18 — Pre-demo automated run: five minutes on-task with continuous capture, closed mic,
+  and zero extra speech; a 15-minute session survived actual WebSocket loss/recovery and pause/resume.
+  Three complete Safari/local-page cycles passed in one process with real Gemini and realtime text:
+  four connections, 210 frames, nine nudges, six anchored question notes (2.002–2.602s), three allowances,
+  and zero CHECK playback. Withheld 1,321 microphone chunks. Real Quiet Mode guidance/re-entry and
+  chime playback, background URL refresh/closed-tab recovery, snooze, and single-instance reopen passed.
+  Injected resume failures honored backoff (1.005/2.002/4.003/4.003s between attempts), then a real fresh
+  connection received CONTEXT_RESTORE; a simulated API outage retained offline return/fallback notes.
+  Fixed native control bounds drifting to 440×472: reopen restores 440×440 before centering, and startup
+  awaits Dock hiding. Test profiles/windows were isolated and closed; no desktop frames/audio saved.
+  Full results and remaining manual rehearsal gates: docs/demo-smoke-2026-10-18.md. The long session
+  and three-cycle run preceded the subsequent caption change, which received separate targeted checks.
 
 - 2026-10-18 — Integrated the character branch with origin/main's Quiet Mode and guided-return
   changes while resolving the rebase conflicts. Kept the supplied Gorilla frames/speech bubble,

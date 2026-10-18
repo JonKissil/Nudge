@@ -4,7 +4,10 @@ import { AudioPlayer } from './audio'
 class FakeWorklet {
   static instances: FakeWorklet[] = []
   readonly messages: unknown[] = []
-  readonly port = { postMessage: (message: unknown) => { this.messages.push(message) } }
+  readonly port = {
+    postMessage: (message: unknown) => { this.messages.push(message) },
+    onmessage: null as ((event: MessageEvent<unknown>) => void) | null,
+  }
   disconnected = false
   constructor() { FakeWorklet.instances.push(this) }
   connect(): void {}
@@ -72,6 +75,27 @@ describe('AudioPlayer', () => {
     await player.play(pcm(2))
     expect(FakeWorklet.instances[0]!.messages.map((message) =>
       (message as { type: string }).type)).toEqual(['audio', 'clear', 'audio'])
+    player.close()
+  })
+
+  it('forwards real playback progress and rejects old updates after flush/restart', async () => {
+    const progress = vi.fn()
+    const player = new AudioPlayer(progress)
+    await player.play(pcm(1, 2), 7)
+    const worklet = FakeWorklet.instances[0]!
+    const report = (playbackId: number, playedSamples: number): void => {
+      worklet.port.onmessage!({ data: { playbackId, playedSamples } } as MessageEvent<unknown>)
+    }
+    report(7, 2)
+    expect(progress).toHaveBeenLastCalledWith({ playbackId: 7, playedSamples: 2 })
+    player.flush()
+    report(7, 3)
+    await player.play(pcm(3), 8)
+    report(7, 4)
+    report(8, -1)
+    expect(progress).toHaveBeenCalledTimes(1)
+    report(8, 1)
+    expect(progress).toHaveBeenLastCalledWith({ playbackId: 8, playedSamples: 1 })
     player.close()
   })
 

@@ -15,10 +15,12 @@ export type AppWindows = Record<WindowKind, BrowserWindow>
 
 export function centerControlWindow(window: BrowserWindow): void {
   const area = screen.getPrimaryDisplay().workArea
-  const bounds = window.getBounds()
+  // macOS can adjust a hidden-inset window's height when its activation policy changes.
+  // Restore the setup window's fixed square as well as its position when reopening it.
+  const bounds = { width: 440, height: 440 }
   // macOS's native center() places small windows above the geometric midpoint.
-  window.setPosition(Math.round(area.x + (area.width - bounds.width) / 2),
-    Math.round(area.y + (area.height - bounds.height) / 2))
+  window.setBounds({ ...bounds, x: Math.round(area.x + (area.width - bounds.width) / 2),
+    y: Math.round(area.y + (area.height - bounds.height) / 2) })
 }
 
 export function createWindows(): AppWindows {

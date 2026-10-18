@@ -64,7 +64,7 @@ export function Settings({ api, snapshot, busy, active, language, setLanguage, c
           checked={snapshot?.settings.quietMode ?? false}
           onChange={(event) => { void command(() => api.setSettings({ quietMode: event.target.checked }),
             'Could not change Quiet Mode.') }} /> Quiet Mode</label>
-        <p>Chimes and on-screen prompts replace spoken replies. The microphone stays off;
+        <p>Chimes and on-screen prompts replace spoken replies. Captions and the microphone stay off;
           use the check-in buttons to return, snooze, or allow a page.</p>
       </section>
       <section className={styles.card} aria-label="Adaptive grace period">

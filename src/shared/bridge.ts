@@ -34,6 +34,7 @@ export interface MediaApi {
   sendFrame: (frame: IpcPayload<typeof IPC.frame>) => void
   sendFullFrame: (frame: IpcPayload<typeof IPC.frameFull>) => void
   sendMicChunk: (chunk: IpcPayload<typeof IPC.micChunk>) => void
+  sendAudioProgress: (progress: IpcPayload<typeof IPC.audioProgress>) => void
   onMicSet: Listen<typeof IPC.micSet>
   onAudioPlay: Listen<typeof IPC.audioPlay>
   onAudioFlush: Listen<typeof IPC.audioFlush>

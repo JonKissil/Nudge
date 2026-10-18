@@ -8,6 +8,7 @@ const api: MediaApi = {
   sendFrame: (frame) => send(IPC.frame, frame),
   sendFullFrame: (frame) => send(IPC.frameFull, frame),
   sendMicChunk: (chunk) => send(IPC.micChunk, chunk),
+  sendAudioProgress: (progress) => send(IPC.audioProgress, progress),
   onMicSet: (listener) => subscribe(IPC.micSet, IpcSchemas[IPC.micSet], listener),
   onAudioPlay: (listener) => subscribe(IPC.audioPlay, IpcSchemas[IPC.audioPlay], listener),
   onAudioFlush: (listener) => subscribe(IPC.audioFlush, IpcSchemas[IPC.audioFlush], listener),

@@ -3,7 +3,7 @@ import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
 
 type Speaker = {
-  port: { onmessage: (event: { data: unknown }) => void }
+  port: { onmessage: (event: { data: unknown }) => void; postMessage: (message: unknown) => void }
   process: (inputs: unknown[], outputs: Float32Array[][]) => boolean
 }
 
@@ -11,7 +11,7 @@ function makeSpeaker(): Speaker {
   let SpeakerClass: new () => Speaker
   const source = readFileSync(new URL('../src/renderer/media/speaker-processor.js', import.meta.url), 'utf8')
   runInNewContext(source, {
-    AudioWorkletProcessor: class { port = { onmessage: () => {} } },
+    AudioWorkletProcessor: class { port = { onmessage: () => {}, postMessage: () => {} } },
     sampleRate: 24_000,
     registerProcessor: (_name: string, processor: new () => Speaker) => { SpeakerClass = processor },
     Int16Array,
@@ -32,6 +32,24 @@ function render(speaker: Speaker, frames: number): number[] {
 }
 
 describe('speaker worklet', () => {
+  it('reports only consumed PCM samples, excluding startup buffering and silence', () => {
+    const speaker = makeSpeaker()
+    const progress: unknown[] = []
+    speaker.port.postMessage = (message) => { progress.push(message) }
+    speaker.port.onmessage({ data: { type: 'audio', playbackId: 7, samples: new Int16Array(1_000).buffer } })
+    render(speaker, 128)
+    expect(progress).toEqual([])
+    render(speaker, 8_000)
+    expect(progress.at(-1)).toEqual({ type: 'progress', playbackId: 7, playedSamples: 1_000 })
+    const count = progress.length
+    render(speaker, 12_000)
+    expect(progress).toHaveLength(count)
+    speaker.port.onmessage({ data: { type: 'clear' } })
+    speaker.port.onmessage({ data: { type: 'audio', playbackId: 8, samples: new Int16Array(400).buffer } })
+    render(speaker, 8_000)
+    expect(progress.at(-1)).toEqual({ type: 'progress', playbackId: 8, playedSamples: 400 })
+  })
+
   it('keeps speech continuous when the next chunk arrives during playback', () => {
     const speaker = makeSpeaker()
     const first = new Int16Array(7_200).fill(8_000)

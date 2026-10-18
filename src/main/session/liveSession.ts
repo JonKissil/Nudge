@@ -78,6 +78,7 @@ export class LiveSessionBridge {
       this.setMicOpen(false)
       this.setSpeaking(false)
       this.sinks.flushAudio()
+      this.sinks.caption('')
     }
   }
 
@@ -153,7 +154,7 @@ export class LiveSessionBridge {
           this.sinks.playAudio(event.pcm24Base64)
         }
         break
-      case 'transcription': this.sinks.caption(event.text); break
+      case 'transcription': if (!this.quietMode) this.sinks.caption(event.text); break
       case 'user-transcription': this.sinks.userSpeech(event.text); break
       case 'interrupted': this.setSpeaking(false); this.sinks.flushAudio(); this.sinks.caption(''); break
       case 'generation-complete': this.setSpeaking(false); break

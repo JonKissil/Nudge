@@ -9,6 +9,7 @@ import {
 export const IPC = {
   frame: 'frame', frameFull: 'frame:full', micChunk: 'mic:chunk', micSet: 'mic:set',
   audioPlay: 'audio:play', audioFlush: 'audio:flush', audioReset: 'audio:reset',
+  audioProgress: 'audio:progress',
   audioChime: 'audio:chime', frameRequestFull: 'frame:request-full',
   captureSet: 'capture:set', overlayState: 'overlay:state', overlayAction: 'overlay:action',
   overlayHover: 'overlay:hover', sessionStart: 'session:start', sessionLockWindow: 'session:lock-window',
@@ -32,7 +33,9 @@ export const IpcSchemas = {
   [IPC.frameFull]: z.strictObject({ pngBase64: base64, ...dimensions }),
   [IPC.micChunk]: z.strictObject({ pcm16Base64: base64 }),
   [IPC.micSet]: z.strictObject({ open: z.boolean() }),
-  [IPC.audioPlay]: z.strictObject({ pcm24Base64: base64 }),
+  [IPC.audioPlay]: z.strictObject({ pcm24Base64: base64, playbackId: z.number().int().nonnegative().default(0) }),
+  [IPC.audioProgress]: z.strictObject({ playbackId: z.number().int().nonnegative(),
+    playedSamples: z.number().int().nonnegative() }),
   [IPC.audioFlush]: EmptySchema,
   [IPC.audioReset]: EmptySchema,
   [IPC.audioChime]: z.strictObject({ cue: z.enum(['nudge', 'return']) }),

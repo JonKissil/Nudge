@@ -55,7 +55,7 @@ export function Overlay() {
     {state?.guidance && <GuidanceCard text={state.guidance.text} {...controls} />}
     {state?.arrow && <Arrow arrow={state.arrow} />}
     {state?.notes.map((note) => <StickyNote key={`${note.id}:${note.expiresAt}`} note={note} {...controls} />)}
-    {state?.caption?.trim() && <Captions text={state.caption} />}
+    {!state?.pill.quietMode && state?.caption?.trim() && <Captions text={state.caption} />}
   </div>
 }
 
