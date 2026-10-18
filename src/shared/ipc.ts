@@ -3,7 +3,7 @@ import { isBase64 } from './base64'
 import { TimingFeedbackSchema } from './habits'
 import {
   CaptureStatusSchema, MicTestResultSchema, OverlayActionSchema, OverlayStateSchema, SessionSnapshotSchema,
-  SessionStartSchema, SettingsSchema,
+  SessionStartSchema, SettingsSchema, ThemeSchema,
 } from './types'
 
 export const IPC = {
@@ -50,7 +50,7 @@ export const IpcSchemas = {
   [IPC.sessionEnd]: EmptySchema,
   [IPC.sessionPauseToggle]: EmptySchema,
   [IPC.sessionSnapshot]: SessionSnapshotSchema,
-  [IPC.settingsSet]: SettingsSchema.partial(),
+  [IPC.settingsSet]: SettingsSchema.partial().safeExtend({ theme: ThemeSchema.optional() }),
   [IPC.graceReset]: EmptySchema,
   [IPC.graceFeedback]: TimingFeedbackSchema,
   [IPC.permissionsStatus]: EmptySchema,

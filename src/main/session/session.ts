@@ -34,7 +34,7 @@ import { overlayExclusions } from '../ocr/geometry'
 import { TAB_STRIP_HEIGHT } from '../ocr/tabStrip'
 
 export interface SessionHooks {
-  // M2 calls this after its three-second active-window lock resolves.
+  // M2 calls this after the active-window lock countdown resolves.
   activateTaskWindow(window: WindowInfo): Promise<ActionResult>
   // M2 calls this on active-window changes and classification ticks.
   observeWindow(window: WindowInfo, verdict: RuleVerdict, matchesTask: boolean): Promise<ActionResult>

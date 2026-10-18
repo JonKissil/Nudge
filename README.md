@@ -20,7 +20,7 @@ If your terminal sets `ELECTRON_RUN_AS_NODE=1`, run `env -u ELECTRON_RUN_AS_NODE
 toggle demo timing while the app runs.
 
 In the control window, save a task, click **Start session**, and switch to its document in Safari,
-Chrome, another supported browser, or a document app before the three-second countdown ends.
+Chrome, another supported browser, or a document app before the five-second countdown ends.
 Nudge prepares a quiet Gemini Live connection when the app opens and reuses it after the task window
 is locked. Saving a different language prepares that configuration during setup. Screen capture and
 microphone forwarding remain gated by the study session; a slow API handshake does not block capture

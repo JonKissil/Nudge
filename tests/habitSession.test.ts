@@ -54,7 +54,7 @@ afterEach(async () => {
 })
 function fixture() {
   const sender = { send: vi.fn(), mainFrame: {} }
-  const windows = { control: { webContents: sender }, media: { webContents: { send: vi.fn() } },
+  const windows = { control: { webContents: sender, setBackgroundColor: vi.fn() }, media: { webContents: { send: vi.fn() } },
     overlay: { webContents: { send: vi.fn() }, setIgnoreMouseEvents: vi.fn() } } as unknown as AppWindows
   hooks = registerScaffoldIpc(() => windows)
   let snapshot: SessionSnapshot
