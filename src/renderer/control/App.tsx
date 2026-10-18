@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { ControlApi } from '../../shared/bridge'
 import type { SessionSnapshot } from '../../shared/types'
-import { DEMO_TASK } from '../../shared/config'
+import { DEMO_TASK, LOCK_WINDOW_COUNTDOWN_MS } from '../../shared/config'
 import type { LanguageCode } from '../../shared/languages'
 import { Settings } from './Settings'
 import mascot from '../assets/desktop-mascot.png'
@@ -127,7 +127,7 @@ export function App() {
           Offline mode: {snapshot.connectionIssue ?? 'Gemini could not connect.'}
         </p>}
         {snapshot?.state === 'SETUP' && <div className={styles.lockStep}>
-          <p>After starting, switch to your task window within 3 seconds.</p>
+          <p>After starting, switch to your task window within {LOCK_WINDOW_COUNTDOWN_MS / 1000} seconds.</p>
           <button type="button" disabled={busy || Boolean(snapshot.lockWindowAt)}
             onClick={() => { void startAndLock() }}>
             {snapshot.lockWindowAt ? `Switch to your task · ${remaining}` : 'Start session'}

@@ -374,7 +374,7 @@ to avoid interrupting it. Re-enable speech for audible app turns and gated stude
 
 | State | Behavior | Transitions |
 |---|---|---|
-| `SETUP` | The student enters the task and duration (form or `set_task`). Saving prepares the API/language; "Lock task window" starts a 3-second countdown. | Locked → `FOCUSED` (adopt warm connection, start capture, send `[SESSION_START]`) |
+| `SETUP` | The student enters the task and duration (form or `set_task`). Saving prepares the API/language; "Lock task window" starts a 5-second countdown. | Locked → `FOCUSED` (adopt warm connection, start capture, send `[SESSION_START]`) |
 | `FOCUSED` | Frames stream. Every `tickMs` (and on each window change): if the rules say `ask`, send `[CHECK]`. | Off-task verdict → `DRIFTING` (start the timer) |
 | `DRIFTING` | Timer accumulates. | Back on-task → `FOCUSED` (reset timer). Timer ≥ `graceMs` and the nudge rate limit allows → `NUDGING` |
 | `NUDGING` | Send `[NUDGE]`. Show the overlay nudge card. Open the mic. | → `CHECKIN` |

@@ -58,7 +58,7 @@ completed components; M8 has a draft deck and script.
 - [x] `drift/rules.ts` + tests (`on`/`off`/`ask`/`ignore`)
 - [x] Media window: `setDisplayMediaRequestHandler` + `getDisplayMedia`; frame diff (helper + tests); ≤1 fps JPEG at 1280w → `frame` IPC
 - [x] Full-resolution frame on request (`frame:request-full`)
-- [x] Control window: "Lock task window" 3-second countdown → stores the task window
+- [x] Control window: "Lock task window" 5-second countdown → stores the task window
 - **Accept — passed with Safari:** the HUD shows the live active window, the rule verdict, and frames/min
   (required idle keyframes every 5s, about 12/min once settled; rising when scrolling). Native PNG, pause,
   resume, end, and countdown cancellation passed; see the M2 and checkpoint 1 logs.

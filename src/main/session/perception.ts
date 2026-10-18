@@ -5,7 +5,7 @@ import { readActiveWindow, startActiveWindowPoller } from '../os/activeWindow'
 import { NativeReadQueue } from '../os/windowReadQueue'
 import { readTaskTabUrl } from '../os/focus'
 import { registerScreenCapture } from '../os/screenCapture'
-import { DEFAULTS } from '../../shared/config'
+import { DEFAULTS, LOCK_WINDOW_COUNTDOWN_MS } from '../../shared/config'
 import { IPC } from '../../shared/ipc'
 import type { IpcPayload } from '../../shared/ipc'
 import type { ActionResult, AllowListEntry, CaptureStatus, SessionSnapshot, SessionState, WindowInfo } from '../../shared/types'
@@ -104,9 +104,9 @@ export class PerceptionController {
     if (this.ports.getSnapshot().lockWindowAt) return { ok: false, error: 'The window countdown is already running.' }
     const version = ++this.lockVersion
     this.ports.updateSnapshot((snapshot) => ({ ...snapshot,
-      lockWindowAt: Date.now() + 3000, lockError: undefined }))
+      lockWindowAt: Date.now() + LOCK_WINDOW_COUNTDOWN_MS, lockError: undefined }))
     this.ports.publish()
-    this.lockTimer = setTimeout(() => { void this.finishLock(version) }, 3000)
+    this.lockTimer = setTimeout(() => { void this.finishLock(version) }, LOCK_WINDOW_COUNTDOWN_MS)
     return { ok: true }
   }
 
