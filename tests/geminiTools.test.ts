@@ -13,6 +13,19 @@ const handlers: ToolHandlers = {
 }
 
 describe('Live tool boundary', () => {
+  it('validates habit proposals and feedback and keeps review results silent', async () => {
+    const invalid = await runToolCall({ id: 'habit-1', name: 'propose_grace_period', args: {
+      review_id: 'invented', grace_ms: 999_999, evidence_ids: [], reason: 'return-pattern',
+    } }, handlers)
+    expect(invalid).toMatchObject({ id: 'habit-1', scheduling: 'silent', response: { ok: false } })
+    const recordTimingFeedback = async ({ preference }: { preference: string }) => ({ ok: true, preference })
+    expect(await runToolCall({ id: 'feedback-1', name: 'record_timing_feedback', args: { preference: 'more-time' } }, {
+      ...handlers, recordTimingFeedback,
+    })).toMatchObject({ response: { ok: true, preference: 'more-time' }, scheduling: 'when-idle' })
+    expect(await runToolCall({ id: 'feedback-2', name: 'record_timing_feedback', args: { preference: 'made-up' } }, {
+      ...handlers, recordTimingFeedback,
+    })).toMatchObject({ response: { ok: false } })
+  })
   it('keeps status reports silent and validates their arguments', async () => {
     const valid = await runToolCall({ id: '1', name: 'report_status', args: {
       check_id: 'check-1', on_task: false, activity: 'Watching a video', confidence: 0.9,

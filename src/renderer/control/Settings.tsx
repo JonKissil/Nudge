@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import type { ControlApi } from '../../shared/bridge'
 import type { SessionSnapshot, Theme } from '../../shared/types'
 import { LANGUAGE_CODES, LANGUAGE_NATIVE_NAMES, type LanguageCode } from '../../shared/languages'
+import { HABIT_EXPLANATIONS } from '../../shared/habits'
 import { DevHud } from './DevHud'
 import { Permissions } from './Permissions'
 import mascot from '../assets/desktop-mascot.png'
@@ -24,6 +26,7 @@ export function Settings({ api, snapshot, busy, active, language, setLanguage, c
     { id: 'neo-brutalist', name: 'Neo-brutalist', detail: 'Bold contrast' },
     { id: 'playful', name: 'Playful', detail: 'A little companion' },
   ]
+  const [feedbackMessage, setFeedbackMessage] = useState('')
   return (
     <div className={styles.settingsPage}>
       <section className={styles.themeSection} aria-labelledby="theme-heading">
@@ -55,6 +58,44 @@ export function Settings({ api, snapshot, busy, active, language, setLanguage, c
             {LANGUAGE_NATIVE_NAMES[code]}
           </option>)}
         </select>
+      </section>
+      <section className={styles.card} aria-label="Adaptive grace period">
+        <label><input type="checkbox" disabled={!snapshot || busy || snapshot.settings.demoMode}
+          checked={snapshot?.settings.adaptiveGrace !== false}
+          onChange={(event) => { void command(() => api.setSettings({ adaptiveGrace: event.target.checked }),
+            'Could not change adaptive timing.') }} /> Learn my grace period</label>
+        <p>{snapshot?.settings.demoMode ? 'Demo timing stays at 15 seconds and does not learn.'
+          : `Current grace: ${Math.round((snapshot?.stats.graceMs ?? 90_000) / 1000)} seconds. Changes apply to your next session.`}</p>
+        <p>Uses your recent unprompted returns to the task.</p>
+        <label><input type="checkbox" disabled={!snapshot || busy || snapshot.settings.demoMode || snapshot.settings.adaptiveGrace === false}
+          checked={snapshot?.settings.geminiGrace !== false}
+          onChange={(event) => { void command(() => api.setSettings({ geminiGrace: event.target.checked }),
+            'Could not change Gemini timing reviews.') }} /> Let Gemini refine my timing</label>
+        <p>Shares numeric timing summaries and your feedback with Gemini. Timing history stays on this Mac;
+          it contains no screen images, audio, task text, or page addresses.</p>
+        {snapshot?.settings.adaptiveGrace !== false && snapshot?.settings.geminiGrace !== false && !snapshot?.settings.demoMode
+          && <p>Next session: {Math.round((snapshot?.stats.nextGraceMs ?? 90_000) / 1000)} seconds.
+            {' '}{snapshot?.stats.habitProfile ? HABIT_EXPLANATIONS[snapshot.stats.habitProfile.reason]
+              : 'Gemini reviews begin after enough history is available.'}</p>}
+        <div className={styles.previewActions}>
+          {(['sooner', 'more-time'] as const).map((preference) => <button key={preference} type="button"
+            disabled={!snapshot || busy || !['FOCUSED', 'DRIFTING', 'CHECKIN', 'SNOOZED'].includes(snapshot.state)
+              || snapshot.settings.demoMode || snapshot.settings.adaptiveGrace === false || snapshot.settings.geminiGrace === false}
+            onClick={() => { void command(async () => {
+              const result = await api.recordTimingFeedback({ preference })
+              if (result.ok) setFeedbackMessage('Saved for your next timing review.')
+              return result
+            }, 'Could not save timing feedback.') }}>
+            {preference === 'sooner' ? 'Check in sooner' : 'Give me more time'}
+          </button>)}
+        </div>
+        {feedbackMessage && <p role="status">{feedbackMessage}</p>}
+        <button type="button" disabled={!snapshot || busy || (!snapshot.stats.graceSamples && !snapshot.stats.habitEvents && !snapshot.stats.habitProfile)}
+          onClick={() => { void command(async () => {
+            const result = await api.resetGraceHistory()
+            if (result.ok) setFeedbackMessage('')
+            return result
+          }, 'Could not reset learned timing.') }}>Reset learned timing</button>
       </section>
       {active && <section className={styles.card} aria-label="Current session">
         <strong>Current session</strong>

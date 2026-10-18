@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { LanguageCodeSchema } from './languages'
+import { HabitProfileSchema, HABIT_HISTORY_LIMIT } from './habits'
 
 export const SessionStateSchema = z.enum([
   'IDLE', 'SETUP', 'FOCUSED', 'DRIFTING', 'NUDGING', 'CHECKIN',
@@ -41,6 +42,7 @@ export const ThemeSchema = z.enum(['pixelated', 'minimalist', 'neo-brutalist', '
 export type Theme = z.infer<typeof ThemeSchema>
 export const SettingsSchema = z.strictObject({
   demoMode: z.boolean(), showHud: z.boolean(), theme: ThemeSchema.default('minimalist'),
+  adaptiveGrace: z.boolean().optional(), geminiGrace: z.boolean().optional(),
 })
 export type Settings = z.infer<typeof SettingsSchema>
 export const CaptureStatusSchema = z.strictObject({
@@ -59,6 +61,9 @@ export const MicTestResultSchema = z.strictObject({
 })
 export type MicTestResult = z.infer<typeof MicTestResultSchema>
 export const HudStatsSchema = z.strictObject({
+  graceMs: z.number().int().positive().optional(), graceSamples: z.number().int().min(0).max(20).optional(),
+  habitEvents: z.number().int().min(0).max(HABIT_HISTORY_LIMIT).optional(),
+  habitProfile: HabitProfileSchema.optional(), nextGraceMs: z.number().int().positive().optional(),
   framesPerMinute: z.number().nonnegative(),
   resumptionHandleAgeMs: z.number().nonnegative().nullable(),
   ruleVerdict: RuleVerdictSchema.optional(),

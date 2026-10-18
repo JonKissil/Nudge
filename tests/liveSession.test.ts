@@ -34,6 +34,7 @@ describe('LiveSessionBridge', () => {
     const focus = vi.fn(handlers.focusTaskWindow)
     const bridge = new LiveSessionBridge(client, { ...handlers, focusTaskWindow: focus }, sinks)
     bridge.warmup()
+    expect(bridge.trySendHabitReview({ tag: 'HABIT_REVIEW', text: '[HABIT_REVIEW]', turnComplete: true })).toBe(false)
     expect(client.warmups).toEqual(['en'])
     expect(sinks.connection).toHaveBeenCalledWith('connected')
     bridge.updateContext(context)

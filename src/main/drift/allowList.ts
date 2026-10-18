@@ -2,11 +2,16 @@ import { z } from 'zod'
 import { AllowListEntrySchema, ThemeSchema, type AllowListEntry, type WindowInfo } from '../../shared/types'
 import { isBrowser } from './matchWindow'
 import { SavedTaskTabSchema } from '../session/taskUrl'
+import { GraceHistorySchema } from '../../shared/grace'
+import { HabitMemorySchema, emptyHabitMemory } from '../../shared/habits'
 
 export const StoredStateSchema = z.strictObject({
   version: z.literal(1), allowList: z.array(AllowListEntrySchema).max(1000),
   lockedTask: SavedTaskTabSchema.optional(),
   theme: ThemeSchema.optional(),
+  graceHistory: GraceHistorySchema.catch([]).optional(), adaptiveGrace: z.boolean().catch(false).optional(),
+  geminiGrace: z.boolean().catch(false).optional(),
+  habits: HabitMemorySchema.catch(emptyHabitMemory).optional(),
 })
 export type StoredState = z.infer<typeof StoredStateSchema>
 

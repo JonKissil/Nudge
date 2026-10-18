@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isBase64 } from './base64'
+import { TimingFeedbackSchema } from './habits'
 import {
   CaptureStatusSchema, MicTestResultSchema, OverlayActionSchema, OverlayStateSchema, SessionSnapshotSchema,
   SessionStartSchema, SettingsSchema,
@@ -18,6 +19,8 @@ export const IPC = {
   permissionsRequestMicrophone: 'permissions:request-microphone',
   micTest: 'mic:test', micTestStart: 'mic:test-start', micTestResult: 'mic:test-result',
   mediaReady: 'media:ready', captureStatus: 'capture:status',
+  graceReset: 'grace:reset',
+  graceFeedback: 'grace:feedback',
 } as const
 
 export const EmptySchema = z.strictObject({})
@@ -48,6 +51,8 @@ export const IpcSchemas = {
   [IPC.sessionPauseToggle]: EmptySchema,
   [IPC.sessionSnapshot]: SessionSnapshotSchema,
   [IPC.settingsSet]: SettingsSchema.partial(),
+  [IPC.graceReset]: EmptySchema,
+  [IPC.graceFeedback]: TimingFeedbackSchema,
   [IPC.permissionsStatus]: EmptySchema,
   [IPC.permissionsOpen]: z.strictObject({ kind: z.enum(['screen', 'microphone', 'automation', 'accessibility']) }),
   [IPC.permissionsRequestMicrophone]: EmptySchema,

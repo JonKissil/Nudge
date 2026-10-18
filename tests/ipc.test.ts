@@ -56,6 +56,14 @@ describe('IPC boundaries', () => {
       expect(IpcSchemas[IPC.settingsSet].safeParse({ theme }).success).toBe(true)
     }
     expect(IpcSchemas[IPC.settingsSet].safeParse({ theme: 'unknown' }).success).toBe(false)
+    expect(IpcSchemas[IPC.settingsSet].parse({ showHud: true })).toEqual({ showHud: true })
+    expect(IpcSchemas[IPC.settingsSet].safeParse({ adaptiveGrace: false }).success).toBe(true)
+    expect(IpcSchemas[IPC.settingsSet].safeParse({ geminiGrace: false }).success).toBe(true)
+    expect(IpcSchemas[IPC.graceFeedback].safeParse({ preference: 'sooner' }).success).toBe(true)
+    expect(IpcSchemas[IPC.graceFeedback].safeParse({ preference: 'sooner', transcript: 'private' }).success).toBe(false)
+    expect(IpcSchemas[IPC.graceFeedback].safeParse({ preference: 'invented' }).success).toBe(false)
+    expect(IpcSchemas[IPC.graceReset].safeParse({})).toHaveProperty('success', true)
+    expect(IpcSchemas[IPC.graceReset].safeParse({ history: [] })).toHaveProperty('success', false)
     expect(IpcSchemas[IPC.settingsSet].safeParse({ apiKey: 'unexpected' }).success).toBe(false)
   })
 

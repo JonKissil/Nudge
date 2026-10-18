@@ -64,6 +64,46 @@ beforeEach(() => {
 })
 
 describe('GeminiLiveClient transport', () => {
+  it('runs habit reviews only on an idle study connection, silently, without exposing action tools', async () => {
+    const client = new GeminiLiveClient('test-key')
+    const events: string[] = []
+    client.onEvent((event) => { events.push(event.type) })
+    const review = { tag: 'HABIT_REVIEW' as const, text: '[HABIT_REVIEW]', reviewId: 'review-1', turnComplete: true }
+    await client.warmup()
+    expect(client.trySendHabitReview(review)).toBe(false)
+    await client.connect({ ...context, state: 'FOCUSED' })
+    expect(client.trySendHabitReview(review)).toBe(true)
+    expect(client.trySendHabitReview(review)).toBe(false)
+    sdk.callbacks?.onmessage({ toolCall: { functionCalls: [{ id: 'bad', name: 'focus_task_window', args: {} }] },
+      serverContent: { modelTurn: { parts: [{ inlineData: { data: 'cGNt', mimeType: 'audio/pcm' } }] },
+        outputTranscription: { text: 'Unwanted review speech' } } })
+    expect(events).not.toContain('tool-call')
+    expect(events).not.toContain('audio')
+    expect(events).not.toContain('transcription')
+    expect(sdk.responses.at(-1)).toMatchObject({ functionResponses: [{ scheduling: 'SILENT', response: { ok: false } }] })
+    client.sendTurn({ tag: 'NUDGE', text: '[NUDGE]', turnComplete: true })
+    expect(sdk.turns).toHaveLength(2) // Adoption context plus review; no interruption.
+    sdk.callbacks?.onmessage({ serverContent: { turnComplete: true } })
+    expect(sdk.turns).toHaveLength(3)
+    sdk.callbacks?.onmessage({ serverContent: { outputTranscription: { text: 'A normal nudge' } } })
+    expect(events).toContain('transcription')
+    await client.disconnect()
+  })
+
+  it('recovers a stalled habit review before delivering a queued fresh check', async () => {
+    vi.useFakeTimers()
+    const client = new GeminiLiveClient('test-key')
+    try {
+      await client.connect({ ...context, state: 'FOCUSED' })
+      expect(client.trySendHabitReview({ tag: 'HABIT_REVIEW', reviewId: 'review-1', text: '[HABIT_REVIEW]', turnComplete: true })).toBe(true)
+      client.sendTurn({ tag: 'CHECK', checkId: 'check-1', text: '[CHECK]', turnComplete: true })
+      await vi.advanceTimersByTimeAsync(10_500)
+      expect(sdk.configs).toHaveLength(2)
+      client.sendFrame('fresh-after-review')
+      expect(sdk.turns.at(-1)).toMatchObject({ turns: [{ parts: [{ text: '[CHECK]' },
+        { inlineData: { data: 'fresh-after-review' } }] }] })
+    } finally { await client.disconnect(); vi.useRealTimers() }
+  })
   it('warms one silent connection and reuses it with the actual task at lock', async () => {
     const client = new GeminiLiveClient('test-key')
     await Promise.all([client.warmup(), client.warmup()])

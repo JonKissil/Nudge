@@ -42,6 +42,7 @@ export class FakeLiveClient implements LiveClient {
   setCheckinActive(active: boolean): void { this.checkinActive = active }
 
   sendTurn(turn: LiveTurn): void { this.turns.push(turn) }
+  trySendHabitReview(turn: LiveTurn): boolean { this.turns.push(turn); return true }
   sendFrame(jpegBase64: string): void { this.frames.push(jpegBase64) }
   sendAudio(pcm16Base64: string): void { this.audioChunks.push(pcm16Base64) }
   endAudioStream(): void { this.audioStreamEnds += 1 }
