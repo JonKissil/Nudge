@@ -9,6 +9,8 @@ import { DEFAULTS } from '../../shared/config'
 import { IPC } from '../../shared/ipc'
 import type { IpcPayload } from '../../shared/ipc'
 import type { ActionResult, AllowListEntry, CaptureStatus, SessionSnapshot, SessionState, WindowInfo } from '../../shared/types'
+import type { CapturePolicy } from '../../shared/privacy'
+import type { PrivacyController } from '../privacy/controller'
 
 type FullFrame = IpcPayload<typeof IPC.frameFull>
 
@@ -24,10 +26,12 @@ export interface PerceptionPorts {
   pause(): Promise<ActionResult>
   publish(): void
   log(message: string): void
+  privacy?: { controller(): PrivacyController; capturePolicy(): CapturePolicy | undefined }
 }
 
 export class PerceptionController {
   private captureDesired = false
+  private captureCommandId = 0
   private disposed = false
   private lockTimer?: ReturnType<typeof setTimeout>
   private lockVersion = 0
@@ -45,7 +49,8 @@ export class PerceptionController {
   constructor(private readonly ports: PerceptionPorts) {
     const media = ports.getWindows()?.media
     if (!media) throw new Error('Media window is not ready')
-    this.stopCaptureHandler = registerScreenCapture(media, () => this.captureAllowed(), (message) => ports.log(message))
+    this.stopCaptureHandler = registerScreenCapture(media, () => this.captureAllowed(), (message) => ports.log(message),
+      () => ports.privacy?.capturePolicy())
     this.stopPoller = startActiveWindowPoller((window) => { void this.observe(window) },
       (message) => ports.log(message), this.readWindow, () => ports.getPhase() === 'RETURNING' ? 500 : 1000)
     this.metricsTimer = setInterval(() => {
@@ -59,6 +64,7 @@ export class PerceptionController {
 
   private async observe(window: WindowInfo | undefined): Promise<void> {
     if (this.disposed) return
+    if (!['IDLE', 'SETUP', 'PAUSED', 'ENDED'].includes(this.ports.getPhase())) this.ports.privacy?.controller().observe(window)
     const locked = this.ports.getSnapshot().taskWindow
     const verdict = window ? classifyWindow(window, locked, this.ports.getAllowList(), { ownProcessId: process.pid }) : undefined
     this.ports.updateSnapshot((snapshot) => ({ ...snapshot, stats: {
@@ -75,6 +81,7 @@ export class PerceptionController {
   captureAllowed(): boolean {
     return !this.disposed && this.captureDesired
       && !['IDLE', 'SETUP', 'PAUSED', 'ENDED'].includes(this.ports.getPhase())
+      && (!this.ports.privacy || this.ports.privacy.controller().state.sharing)
   }
 
   readCurrentWindow(): Promise<WindowInfo | undefined> { return this.readWindow() }
@@ -96,7 +103,16 @@ export class PerceptionController {
 
   sendCaptureState(): void {
     const media = this.ports.getWindows()?.media
-    if (media && !media.isDestroyed()) media.webContents.send(IPC.captureSet, { running: this.captureAllowed() })
+    if (media && !media.isDestroyed()) media.webContents.send(IPC.captureSet, {
+      running: this.captureAllowed(), revision: this.ports.privacy?.controller().state.revision ?? 0,
+      commandId: ++this.captureCommandId, policy: this.ports.privacy?.capturePolicy(),
+    })
+  }
+
+  invalidatePrivacy(): void {
+    this.rejectFullFrame('Sharing changed; the frame request was cancelled.')
+    this.lastFrameAt = -Infinity
+    this.sendCaptureState()
   }
 
   lockWindow(): ActionResult {
@@ -159,7 +175,19 @@ export class PerceptionController {
     return true
   }
 
+  async validateFrame(revision: number): Promise<boolean> {
+    const privacy = this.ports.privacy?.controller()
+    if (!this.captureAllowed() || (privacy && !privacy.current(revision))) return false
+    try {
+      const window = await this.readWindow()
+      privacy?.observe(window)
+      return this.captureAllowed() && (!privacy || privacy.current(revision))
+    } catch { privacy?.observe(undefined); return false }
+  }
+
   handleCaptureStatus(status: CaptureStatus): void {
+    if (this.ports.privacy && status.revision !== this.ports.privacy.controller().state.revision) return
+    if (this.ports.privacy && status.commandId !== this.captureCommandId) return
     this.ports.updateSnapshot((snapshot) => ({ ...snapshot, stats: { ...snapshot.stats, capture: status } }))
     if (status.error) this.ports.log(status.error)
     if (status.state === 'running' && status.error) this.rejectFullFrame(status.error)
@@ -171,7 +199,9 @@ export class PerceptionController {
     this.ports.publish()
   }
 
-  handleFullFrame(frame: FullFrame): void {
+  async handleFullFrame(frame: FullFrame): Promise<void> {
+    if (!this.fullRequest || !this.captureAllowed()) return
+    if (this.ports.privacy && !await this.validateFrame(frame.revision)) return
     if (!this.fullRequest || !this.captureAllowed()) return
     clearTimeout(this.fullRequest.timer)
     this.fullRequest.resolve(frame)

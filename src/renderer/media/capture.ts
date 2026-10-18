@@ -1,6 +1,8 @@
 import type { MediaApi } from '../../shared/bridge'
 import { DEFAULTS } from '../../shared/config'
 import { grayscale, shouldSendFrame } from './frameDiff'
+import type { CapturePolicy } from '../../shared/privacy'
+import { paintPrivateFrame } from './privacyCanvas'
 
 function base64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -25,28 +27,40 @@ export class ScreenCapture {
   private generation = 0
   private encoding = false
   private operation = Promise.resolve()
+  private policy?: CapturePolicy
+  private revision = 0
+  private commandId = 0
 
   constructor(private readonly api: MediaApi) {
     this.video.muted = true
     this.video.playsInline = true
   }
 
-  setRunning(running: boolean): void {
-    this.wanted = running
+  setRunning(running: boolean, policy?: CapturePolicy, revision = policy?.revision ?? 0, commandId = 0): void {
+    if (this.policy?.revision !== policy?.revision) this.stop()
+    this.policy = policy
+    this.revision = revision
+    this.commandId = commandId
+    this.wanted = running && Boolean(policy)
     this.generation++
-    if (!running) { this.stop(); this.api.sendCaptureStatus({ state: 'off' }) }
+    const generation = this.generation
+    if (!this.wanted) { this.stop(); this.status('off') }
     // Serialize getDisplayMedia calls; pause cancels pending starts before they can send frames.
     this.operation = this.operation.then(() => this.startIfNeeded()).catch(() => {
+      if (generation !== this.generation) return
       this.stop()
-      if (this.wanted) this.api.sendCaptureStatus({ state: 'error',
-        error: 'Screen capture could not start. Check Screen Recording permission and restart the app.' })
+      if (this.wanted && generation === this.generation) this.status('error', 'Screen capture could not start. Check Screen Recording permission and restart the app.')
     })
+  }
+
+  private status(state: 'off' | 'starting' | 'running' | 'error', error?: string): void {
+    this.api.sendCaptureStatus({ state, error, revision: this.revision, commandId: this.commandId })
   }
 
   private async startIfNeeded(): Promise<void> {
     if (!this.wanted || this.stream) return
     const generation = this.generation
-    this.api.sendCaptureStatus({ state: 'starting' })
+    this.status('starting')
     const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: DEFAULTS.frameMaxFps }, audio: false })
     if (!this.wanted || generation !== this.generation) { stream.getTracks().forEach((track) => track.stop()); return }
     this.stream = stream
@@ -57,9 +71,9 @@ export class ScreenCapture {
       this.wanted = false
       this.generation++
       this.stop()
-      this.api.sendCaptureStatus({ state: 'off' })
+      this.status('off')
     }
-    this.api.sendCaptureStatus({ state: 'running' })
+    this.status('running')
     const nextVideoFrame = (): void => {
       this.videoCallback = this.video.requestVideoFrameCallback(() => {
         void this.sample()
@@ -73,35 +87,35 @@ export class ScreenCapture {
   }
 
   private async sample(): Promise<void> {
-    if (!this.wanted || !this.stream || this.encoding || !this.video.videoWidth) return
+    if (!this.wanted || !this.stream || this.encoding || !this.video.videoWidth || !this.policy) return
     const generation = this.generation
+    const policy = this.policy
     this.encoding = true
     try {
       const context = this.small.getContext('2d', { willReadFrequently: true })
       if (!context) throw new Error('Canvas unavailable')
-      context.drawImage(this.video, 0, 0, 64, 36)
+      paintPrivateFrame(this.encoded, this.video, policy, DEFAULTS.frameWidth)
+      context.drawImage(this.encoded, 0, 0, 64, 36)
       const gray = grayscale(context.getImageData(0, 0, 64, 36).data)
       if (!shouldSendFrame(gray, this.previous, this.lastSentAt, performance.now(), DEFAULTS)) return
-      this.encoded.height = Math.max(1, Math.round(DEFAULTS.frameWidth * this.video.videoHeight / this.video.videoWidth))
-      const output = this.encoded.getContext('2d')
-      if (!output) throw new Error('Canvas unavailable')
-      output.drawImage(this.video, 0, 0, this.encoded.width, this.encoded.height)
       const jpegBase64 = await base64(await this.encoded.convertToBlob({ type: 'image/jpeg', quality: DEFAULTS.jpegQuality }))
       if (!this.wanted || generation !== this.generation) return
-      this.api.sendFrame({ jpegBase64, width: this.encoded.width, height: this.encoded.height, ts: Date.now() })
+      this.api.sendFrame({ jpegBase64, width: this.encoded.width, height: this.encoded.height, ts: Date.now(), revision: policy.revision })
       this.previous = gray
       this.lastSentAt = performance.now()
     } catch {
+      if (generation !== this.generation) return
       this.wanted = false
       this.generation++
       this.stop()
-      this.api.sendCaptureStatus({ state: 'error', error: 'Screen capture stopped because a frame could not be encoded.' })
+      if (generation === this.generation) this.status('error', 'Screen capture stopped because a frame could not be encoded.')
     } finally { this.encoding = false }
   }
 
   async sendFullFrame(): Promise<void> {
-    if (!this.wanted || !this.stream || !this.video.videoWidth) return
+    if (!this.wanted || !this.stream || !this.video.videoWidth || !this.policy) return
     const generation = this.generation
+    const policy = this.policy
     try {
       // At 1 fps the video can still show the previous tab. Wait for a fresh frame
       // before OCR; a static desktop may deliver none, so bound the wait.
@@ -110,18 +124,16 @@ export class ScreenCapture {
         const timer = setTimeout(() => { this.video.cancelVideoFrameCallback(callback); resolve() }, 1200)
       })
       if (!this.wanted || generation !== this.generation) return
-      const canvas = new OffscreenCanvas(this.video.videoWidth, this.video.videoHeight)
-      const context = canvas.getContext('2d')
-      if (!context) throw new Error('Canvas unavailable')
-      context.drawImage(this.video, 0, 0)
+      const canvas = new OffscreenCanvas(1, 1)
+      paintPrivateFrame(canvas, this.video, policy, Math.round(policy.display.width * policy.scaleFactor))
       const pngBase64 = await base64(await canvas.convertToBlob({ type: 'image/png' }))
       if (this.wanted && generation === this.generation) {
-        this.api.sendFullFrame({ pngBase64, width: canvas.width, height: canvas.height })
-        this.api.sendCaptureStatus({ state: 'running' })
+        this.api.sendFullFrame({ pngBase64, width: canvas.width, height: canvas.height, revision: policy.revision })
+        this.status('running')
       }
     } catch {
       if (this.wanted && generation === this.generation) {
-        this.api.sendCaptureStatus({ state: 'running', error: 'The full-resolution frame could not be prepared or sent.' })
+        this.status('running', 'The full-resolution frame could not be prepared or sent.')
       }
     }
   }

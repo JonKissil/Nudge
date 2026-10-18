@@ -39,6 +39,7 @@ export interface StudyState {
   ocrRequested: boolean
   reentrySent: boolean
   lastNextStep?: string
+  privacyHeldAt?: number
 }
 
 export type StudyEvent =
@@ -64,6 +65,7 @@ export type StudyEvent =
   | { type: 'PAUSE' }
   | { type: 'RESUME' }
   | { type: 'END' }
+  | { type: 'PRIVACY_HOLD' | 'PRIVACY_RELEASE' }
 
 export type StudyEffect =
   | { type: 'CONNECT_LIVE'; window: WindowInfo }
@@ -117,6 +119,20 @@ function snooze(state: StudyState, now: number, durationMs: number): StudyResult
 }
 
 export function reduce(state: StudyState, event: StudyEvent, now: number): StudyResult {
+  if (event.type === 'PRIVACY_HOLD') {
+    if (state.privacyHeldAt !== undefined || ['IDLE', 'SETUP', 'PAUSED', 'ENDED'].includes(state.phase)) return result(state)
+    return result({ ...state, privacyHeldAt: now, phase: state.phase === 'SNOOZED' ? 'SNOOZED' : 'FOCUSED',
+      currentWindow: undefined, checkPending: false, driftSince: undefined, returnMode: undefined,
+      returnUntil: undefined, lastStatus: undefined }, [
+      { type: 'CLOSE_MIC' }, { type: 'SET_CHECKIN_ACTIVE', active: false }, { type: 'STOP_CAPTURE' }, { type: 'HIDE_NUDGE' },
+    ])
+  }
+  if (event.type === 'PRIVACY_RELEASE') {
+    if (state.privacyHeldAt === undefined) return result(state)
+    return result({ ...state, privacyHeldAt: undefined,
+      snoozeUntil: state.snoozeUntil === undefined ? undefined : state.snoozeUntil + now - state.privacyHeldAt },
+    ['PAUSED', 'ENDED'].includes(state.phase) ? [] : [{ type: 'START_CAPTURE' }])
+  }
   if (event.type === 'WINDOW_UNAVAILABLE') return result({ ...state, checkPending: false, currentWindow: undefined })
   if (event.type === 'TASK_URL_UPDATED') {
     const url = state.taskWindow && refreshedTaskUrl(state.taskWindow, event.url)
@@ -148,8 +164,9 @@ export function reduce(state: StudyState, event: StudyEvent, now: number): Study
     ])
   }
   if (event.type === 'RESUME' && state.phase === 'PAUSED') {
-    return result({ ...state, phase: 'FOCUSED' }, [{ type: 'START_CAPTURE' }])
+    return result({ ...state, phase: 'FOCUSED' }, state.privacyHeldAt === undefined ? [{ type: 'START_CAPTURE' }] : [])
   }
+  if (state.privacyHeldAt !== undefined) return result(state)
   if (event.type === 'WINDOW_OBSERVED') {
     if (event.verdict === 'ignore') return result(state)
     if ((state.phase === 'CHECKIN' || state.phase === 'RETURNING') && event.matchesTask) {

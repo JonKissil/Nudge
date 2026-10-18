@@ -8,6 +8,7 @@ import type { AppWindows } from '../src/main/windows'
 import type { SessionSnapshot } from '../src/shared/types'
 import type { FakeLiveClient } from './fakes/FakeLiveClient'
 import { IPC } from '../src/shared/ipc'
+import { defaultPrivacySettings } from '../src/shared/privacy'
 
 const runtime = vi.hoisted(() => ({
   path: '', handlers: new Map<string, (event: unknown, payload: unknown) => Promise<unknown>>(),
@@ -24,7 +25,9 @@ vi.mock('../src/main/gemini/liveClient', async () => {
   return { GeminiLiveClient: class extends FakeLiveClient { constructor() { super(); runtime.client = this } } }
 })
 vi.mock('../src/main/session/perception', () => ({ PerceptionController: class {
-  setCaptureRunning() {} cancelLock() {} dispose() {}
+  constructor(private readonly ports: { observeWindow: (window: typeof task, verdict: 'on', matches: boolean) => Promise<unknown> }) {}
+  setCaptureRunning() {} cancelLock() {} dispose() {} invalidatePrivacy() {}
+  async refreshWindow() { await this.ports.observeWindow(task, 'on', true) }
 } }))
 vi.mock('../src/main/session/taskRecovery', () => ({ TaskRecovery: class { start() {} stop() {} dispose() {} } }))
 vi.mock('../src/main/session/returnActions', () => ({ ReturnActions: class { cancel() {} dispose() {} } }))
@@ -33,7 +36,7 @@ vi.mock('../src/main/ocr/ocr', () => ({ OcrService: class { dispose() {} } }))
 
 import { registerScaffoldIpc, type SessionHooks } from '../src/main/session/session'
 
-const task = { app: 'Safari', bundleId: 'com.apple.Safari', title: 'Fixture', url: 'https://example.test/task',
+const task = { app: 'Safari', bundleId: 'com.apple.Safari', title: 'Fixture', id: 123, url: 'https://example.test/task',
   bounds: { x: 0, y: 0, width: 1200, height: 800 } }
 let hooks: SessionHooks | undefined
 let directory = ''
@@ -61,6 +64,7 @@ function fixture() {
   hooks.onSnapshot((value) => { snapshot = value })
   const invoke = async (channel: string, payload: unknown = {}) => runtime.handlers.get(channel)!({ sender, senderFrame: sender.mainFrame }, payload)
   const begin = async () => {
+    await invoke(IPC.settingsSet, { privacy: { ...defaultPrivacySettings(), shareBrowserContent: true } })
     expect(await invoke(IPC.sessionStart, { task: 'Synthetic fixture', minutes: 5 })).toEqual({ ok: true })
     expect(await hooks!.activateTaskWindow(task)).toEqual({ ok: true })
     await hooks!.observeWindow(task, 'on', true)
@@ -76,6 +80,27 @@ async function settle(check: () => boolean) {
 }
 
 describe('habit learning in the main session wiring', () => {
+  it('holds on excluded/unknown sources, stops learning and tools, and resumes only approved content', async () => {
+    const f = fixture()
+    await f.begin()
+    await f.invoke(IPC.settingsSet, { privacy: { ...defaultPrivacySettings(), shareBrowserContent: true,
+      excludedDomains: ['private.test'] } })
+    const turns = runtime.client!.turns.length
+    await hooks!.observeWindow({ ...task, title: 'PRIVATE_TITLE', url: 'https://private.test/PRIVATE_PATH?token=SECRET' }, 'off', false)
+    expect(f.snapshot().privacy).toMatchObject({ sharing: false, reason: 'excluded-site' })
+    expect(f.snapshot().state).toBe('FOCUSED')
+    expect(hooks!.togglePushToTalk()).toMatchObject({ ok: false })
+    await vi.advanceTimersByTimeAsync(200_000)
+    expect(runtime.client!.turns.length).toBe(turns)
+    expect(f.snapshot().stats.habitEvents).toBe(0)
+    await hooks!.observeWindow(task, 'on', true)
+    expect(f.snapshot().privacy?.sharing).toBe(true)
+    await f.invoke(IPC.sessionPauseToggle)
+    await hooks!.observeWindow(task, 'on', true)
+    expect(f.snapshot().state).toBe('PAUSED')
+    expect(f.snapshot().privacy?.sharing).toBe(false)
+    await f.invoke(IPC.sessionEnd)
+  })
   it('automatically reviews on the task, saves next-session timing, and keeps the active timer fixed', async () => {
     const events = Array.from({ length: 5 }, (_, i) => i === 4
       ? { id: randomUUID(), kind: 'feedback-more-time', graceMs: 90_000 }

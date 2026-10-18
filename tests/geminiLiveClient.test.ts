@@ -64,6 +64,48 @@ beforeEach(() => {
 })
 
 describe('GeminiLiveClient transport', () => {
+  it('discards queued private media/checks and blocks all late output/tools across privacy revisions and reconnects', async () => {
+    vi.useFakeTimers()
+    const client = new GeminiLiveClient('test-key')
+    const events: string[] = []
+    client.onEvent((event) => events.push(event.type))
+    try {
+      await client.connect(context)
+      client.sendTurn({ tag: 'SESSION_START', text: '[SESSION_START]', turnComplete: true })
+      client.sendTurn({ tag: 'CHECK', text: 'QUEUED_PRIVATE_TEXT', turnComplete: true })
+      client.sendFrame('OLD_PRIVATE_PIXELS')
+      client.setPrivacy({ revision: 1, sharing: false, reason: 'excluded-site' })
+      sdk.media.length = 0
+      client.sendFrame('BLOCKED_PRIVATE_PIXELS')
+      client.sendAudio('BLOCKED_PRIVATE_AUDIO')
+      client.sendTurn({ tag: 'CHECK', text: 'BLOCKED_PRIVATE_TEXT', turnComplete: true })
+      sdk.callbacks?.onmessage({ toolCall: { functionCalls: [{ id: 'stale', name: 'focus_task_window', args: {} }] },
+        serverContent: { modelTurn: { parts: [{ inlineData: { data: 'private-output', mimeType: 'audio/pcm' } }] },
+          outputTranscription: { text: 'private-output' }, turnComplete: true } })
+      expect(events).not.toContain('audio')
+      expect(events).not.toContain('transcription')
+      expect(events).not.toContain('tool-call')
+      sdk.callbacks?.onmessage({ goAway: {} })
+      await vi.advanceTimersByTimeAsync(500)
+      expect(sdk.media).toEqual([])
+      expect(JSON.stringify(sdk.turns)).not.toContain('PRIVATE_TEXT')
+      expect(JSON.stringify(sdk.configs.at(-1))).not.toContain(context.taskWindow.title)
+      client.setPrivacy({ revision: 2, sharing: true, reason: 'sharing' })
+      expect(sdk.media).toEqual([])
+    } finally { await client.disconnect(); vi.useRealTimers() }
+  })
+
+  it('minimizes context, check/OCR text, and tool response strings at the transport boundary', async () => {
+    const client = new GeminiLiveClient('test-key')
+    await client.connect({ ...context, task: 'Email private@example.test password=PRIVATE_CREDENTIAL',
+      taskWindow: { ...context.taskWindow, title: 'PRIVATE_TITLE', url: 'https://example.test/PRIVATE_PATH?token=PRIVATE_QUERY#PRIVATE_FRAGMENT' } })
+    client.sendTurn({ tag: 'USER_RETURNED', text: '[USER_RETURNED][DOC_LINES] L1: private@example.test password=PRIVATE_CREDENTIAL', turnComplete: true })
+    client.sendToolResponse({ id: 'response-1', name: 'pin_next_step', scheduling: 'when-idle',
+      response: { ok: false, error: 'See https://example.test/PRIVATE_PATH?token=PRIVATE_QUERY private@example.test' } })
+    const all = JSON.stringify([sdk.configs, sdk.turns, sdk.responses])
+    for (const secret of ['PRIVATE_TITLE', 'PRIVATE_PATH', 'PRIVATE_QUERY', 'PRIVATE_FRAGMENT', 'PRIVATE_CREDENTIAL', 'private@example.test']) expect(all).not.toContain(secret)
+    await client.disconnect()
+  })
   it('runs habit reviews only on an idle study connection, silently, without exposing action tools', async () => {
     const client = new GeminiLiveClient('test-key')
     const events: string[] = []

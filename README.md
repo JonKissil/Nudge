@@ -26,6 +26,29 @@ is locked. Saving a different language prepares that configuration during setup.
 microphone forwarding remain gated by the study session; a slow API handshake does not block capture
 or drift polling from starting.
 
+Privacy controls are in **Settings → Privacy**. Nudge defaults to sharing only the locked task and
+sources you approve; exclusions always take priority. Capture uses that individual window, with black
+padding elsewhere, rather than the whole display. Title/address bars and configured hidden screen
+areas are masked before JPEG encoding and local OCR captures. Text sent to Gemini omits window titles,
+reduces URLs to their origin, and filters common credentials, email addresses, and numeric identifiers.
+
+**Browser sharing is off by default.** Enable **Share browser content** to use Safari/Chrome with Gemini,
+and approve research sites you want it to see. Approving an app covers its windows; approving a site
+covers its subdomains. A browser capture contains whichever tab is visible, and polling cannot reliably
+catch every rapid tab switch. For stronger protection, keep browser sharing off or pause before opening
+private content. Text filtering cannot identify all sensitive information, and it does not automatically
+find private text inside images; use hidden areas for approved images. Do not share content you need to
+keep entirely local. Changing settings cannot recall data already sent to Gemini.
+
+Unknown, excluded, and unapproved sources put the session on a privacy hold: new uploads, microphone,
+drift timing, and habit learning stop, pending work is invalidated, and the pill shows the hold. Returning
+to an approved source resumes with fresh capture; a manual Pause remains paused. Exclusions apply to
+the saved task context too; excluding the task keeps the session private until
+you approve it again or start a different task. The Live connection may stay open during a hold, but
+private content is withheld. Privacy settings and the existing tab-recovery URLs are stored in the
+owner-readable JSON; this is not encrypted storage.
+Screenshots, audio recordings, and document OCR text are not saved to disk by Nudge.
+
 In **Settings → Learn my grace period**, Nudge can adapt its waiting time from your recent unprompted
 returns to the task. It starts at 90 seconds; after five observations it chooses 45–180 seconds for the
 next session. Timing stays fixed during a session. The last 20 unprompted return durations are saved

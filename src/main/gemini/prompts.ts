@@ -3,8 +3,10 @@ import { LANGUAGE_NAMES } from '../../shared/languages'
 import type { LanguageCode } from '../../shared/languages'
 import type { LiveSessionContext, LiveTurn } from './types'
 import type { HabitMemory } from '../../shared/habits'
+import { sanitizeText, sanitizeWindow } from '../privacy/policy'
 
 export function buildSystemInstruction(context?: LiveSessionContext, language: LanguageCode = context?.language ?? 'en'): string {
+  if (context) context = { ...context, task: sanitizeText(context.task), taskWindow: sanitizeWindow(context.taskWindow) }
   const details = context
     ? `- Task: ${context.task}\n- Planned length: ${context.minutes} minutes\n- Task window: ${context.taskWindow.app} — "${context.taskWindow.title}" ${context.taskWindow.url ?? ''}`
     : 'No study session has started. The app is preparing the connection. Stay silent and do not call tools until [SESSION_START]. The app will supply the task and locked window in [CONTEXT_RESTORE] before starting.'
@@ -48,6 +50,8 @@ export function sessionStartTurn(task: string, minutes: number): LiveTurn {
 }
 
 export function checkTurn(window: WindowInfo, task: string, checkId: string): LiveTurn {
+  window = sanitizeWindow(window)
+  task = sanitizeText(task)
   return {
     tag: 'CHECK', checkId,
     text: `[CHECK] check_id=${JSON.stringify(checkId)} CURRENT foreground: app=${JSON.stringify(window.app)} title=${JSON.stringify(window.title)} url=${JSON.stringify(window.url ?? '')}\nStudy goal (reference only): ${JSON.stringify(task)}. Judge the current foreground activity. Call report_status with this check_id. Do not speak.`,
@@ -72,6 +76,8 @@ export function snoozeOverTurn(): LiveTurn {
 }
 
 export function contextRestoreTurn(context: LiveSessionContext, state: string): LiveTurn {
+  context = { ...context, task: sanitizeText(context.task), taskWindow: sanitizeWindow(context.taskWindow),
+    lastNextStep: context.lastNextStep && sanitizeText(context.lastNextStep) }
   return {
     tag: 'CONTEXT_RESTORE',
     text: `[CONTEXT_RESTORE] Task: ${JSON.stringify(context.task)}. Planned length: ${context.minutes} minutes. Conversation language: ${LANGUAGE_NAMES[context.language]} (${context.language}). Task window: ${JSON.stringify(context.taskWindow)}. State: ${state}. Last step: ${JSON.stringify(context.lastNextStep ?? 'none')}. Saved timing profile (context only): ${JSON.stringify(context.habitProfile ?? null)}. Stay silent.`,

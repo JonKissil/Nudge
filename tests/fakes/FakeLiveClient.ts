@@ -2,9 +2,12 @@ import type {
   LiveClient, LiveEvent, LiveSessionContext, LiveToolResponse, LiveTurn,
 } from '../../src/main/gemini/types'
 import type { LanguageCode } from '../../src/shared/languages'
+import type { PrivacyState } from '../../src/shared/privacy'
 
 /** Scriptable transport for session tests. It has no network or timing of its own. */
 export class FakeLiveClient implements LiveClient {
+  privacy?: PrivacyState
+  setPrivacy(state: PrivacyState): void { this.privacy = state }
   readonly connections: LiveSessionContext[] = []
   readonly warmups: LanguageCode[] = []
   readonly turns: LiveTurn[] = []

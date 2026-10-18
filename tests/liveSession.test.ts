@@ -25,6 +25,25 @@ const handlers: ToolHandlers = {
 }
 
 describe('LiveSessionBridge', () => {
+  it('rejects a delayed tool result after a privacy change without sending its original text', async () => {
+    const client = new FakeLiveClient()
+    let finish!: (value: Record<string, unknown>) => void
+    const bridge = new LiveSessionBridge(client, { ...handlers,
+      focusTaskWindow: () => new Promise((resolve) => { finish = resolve }),
+    }, { playAudio: () => {}, flushAudio: () => {}, resetAudio: () => {}, caption: () => {},
+      userSpeech: () => {}, micSet: () => {}, connection: () => {}, resumptionHandle: () => {}, error: () => {} })
+    try {
+      await bridge.start(context)
+      client.emit({ type: 'tool-call', call: { id: 'late-tool', name: 'focus_task_window', args: {} } })
+      bridge.setPrivacy({ sharing: false, reason: 'excluded-site', revision: 1 })
+      bridge.sendFrame('PRIVATE_FRAME')
+      bridge.sendTurn({ tag: 'CHECK', text: 'PRIVATE_TEXT', turnComplete: true })
+      bridge.setMicOpen(true); bridge.sendMicChunk('PRIVATE_AUDIO')
+      finish({ ok: true, detail: 'PRIVATE_DELAYED_RESULT' })
+      await vi.waitFor(() => expect(client.toolResponses.at(-1)).toMatchObject({ id: 'late-tool', scheduling: 'silent', response: { ok: false } }))
+      expect(JSON.stringify([client.turns, client.frames, client.audioChunks, client.toolResponses])).not.toContain('PRIVATE')
+    } finally { await bridge.stop(); bridge.dispose() }
+  })
   it('warms at boot while blocking media, speech, and tool actions until a study starts', async () => {
     const client = new FakeLiveClient()
     const sinks = {

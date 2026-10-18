@@ -74,7 +74,7 @@ Generality (Windows, other browsers, multi-monitor) comes later and is out of sc
 
 ### Key design decisions (don't change without asking the humans)
 
-- **One continuous Live session per study session**, with frames streaming the whole time, so the model genuinely sees live changes.
+- **One continuous Live session per study session**, with frames streaming while privacy permits sharing, so the model sees live changes.
   Prepare one quiet connection at app boot and adopt it when the task is locked. Never capture or send
   screen/mic input, play speech, or execute model tools while only warming up.
 - **The model doesn't decide *when* to talk; the app does.** The model responds to turns, not frames. The app sends tagged
@@ -446,7 +446,9 @@ export const DEMO = { ...DEFAULTS, tickMs: 4_000, graceMs: 15_000, checkinSilenc
 
 ## 8. Screen capture (media window)
 
-- In main: `session.defaultSession.setDisplayMediaRequestHandler((req, cb) => desktopCapturer.getSources({ types: ['screen'] }).then(s => cb({ video: s[0] })))`, using the primary display only.
+- Requested privacy controls replace whole-display capture with the approved native **window** source.
+  In main, `desktopCapturer.getSources({ types: ['window'] })` must match the exact native window ID;
+  never fall back to a screen or another window. Recheck the privacy revision after source enumeration.
 - In the media renderer: `navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })`, then read frames with
   `MediaStreamTrackProcessor` (or a `<video>` element plus `requestVideoFrameCallback`) and draw them to an `OffscreenCanvas`.
 - **Diff:** downscale to 64×36 grayscale and compute mean absolute difference vs. the last *sent* frame.
@@ -454,6 +456,32 @@ export const DEMO = { ...DEFAULTS, tickMs: 4_000, graceMs: 15_000, checkinSilenc
 - **Encode:** resize to `frameWidth` wide, JPEG at `jpegQuality`, base64, then IPC to main → `sendRealtimeInput({ video: { data, mimeType: 'image/jpeg' } })`.
 - Also send main the latest frame **at native resolution** on request (for OCR in `REENTRY`).
 - Do not stream frames while `PAUSED`. Never log or persist frames.
+
+### 8.1 Local privacy controls (requested)
+
+- `shared/privacy.ts` defines bounded, validated settings and capture policies; `main/privacy/policy.ts`
+  makes pure sharing decisions and minimizes outgoing text; `PrivacyController` owns revisions.
+  Default to approved sources only and browser sharing off. Lock approves that task; app/site approvals
+  are explicit and exclusions win. Missing identity/URL/permissions fail closed. An app approval covers
+  its windows and a site approval covers its subdomains. These approvals are separate from task allowances.
+- Browser window capture cannot isolate tabs. Browser sharing is an explicit opt-in with a Settings
+  explanation of the rapid-tab-switch polling limitation. Keeping it off withholds browser content/mic.
+  Do not claim that domain polling or regex filtering guarantees detection of all private information.
+- Compose the approved window onto a black primary-display canvas, preserving overlay/OCR coordinates.
+  Apply configured display-normalized masks and title/address-bar masks before diffing, JPEG encoding,
+  or full-resolution PNG delivery. Never use model processing to decide whether content may be uploaded.
+  Regex filtering applies to text, not arbitrary image pixels; approved images may contain sensitive data.
+- Privacy revisions accompany frames/mic/capture commands. Re-read the foreground window before accepting
+  a frame. Source/settings/pause/end changes invalidate queues, frame caches, OCR, generations, and late
+  tool responses. Reconnect may only use current permitted input and minimized context. Capture commands
+  also have monotonically increasing IDs; stale status acknowledgments cannot pause a newer capture.
+- `PRIVACY_HOLD` closes mic, stops capture and checks, resets drift and learning observations, and hides
+  check-in content. Snooze deadlines shift by the held duration. An approved source releases the hold
+  with fresh capture; manual Pause stays paused. The overlay and Settings show sharing status.
+- Omit window titles and URL paths/query/fragments from model context/checks; filter common identifiers
+  and credentials from task/OCR/tool text. Excluded task-window metadata must not reappear in context
+  restoration. Privacy rules, raw local window details, and full recovery URLs stay local. The existing
+  JSON uses owner-only permissions, not encryption. Already transmitted data cannot be recalled.
 
 ## 9. Overlay window
 
@@ -679,6 +707,10 @@ The native window helper uses Apple Events for browser URL reads as well as the 
 ## 19. Definition of done (demo)
 
 On the demo Mac, with headphones, in `DEMO_MODE`:
+
+For this explicit browser demo, enable browser sharing in Settings and approve the research/demo sites
+you want Gemini to see (including YouTube). Leave private apps/sites excluded; privacy rules also apply
+in demo mode.
 
 1. Start a session by typing or saying the task; lock the Google Doc as the task window; hear a one-line greeting.
 2. Write a sentence. Nothing happens (silent while on-task).

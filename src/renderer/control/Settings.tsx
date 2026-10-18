@@ -4,6 +4,7 @@ import { LANGUAGE_CODES, LANGUAGE_NATIVE_NAMES, type LanguageCode } from '../../
 import { HABIT_EXPLANATIONS } from '../../shared/habits'
 import { DevHud } from './DevHud'
 import { Permissions } from './Permissions'
+import { PrivacySettings } from './PrivacySettings'
 import styles from './App.module.css'
 
 interface SettingsProps {
@@ -21,6 +22,12 @@ export function Settings({ api, snapshot, busy, active, language, setLanguage, c
   const [feedbackMessage, setFeedbackMessage] = useState('')
   return (
     <div className={styles.settingsPage}>
+      <PrivacySettings key={JSON.stringify(snapshot?.settings.privacy)} snapshot={snapshot} busy={busy}
+        save={async (privacy) => {
+          let result: Awaited<ReturnType<typeof api.setSettings>> = { ok: false, error: 'Privacy settings could not be saved.' }
+          await command(async () => { result = await api.setSettings({ privacy }); return result }, 'Privacy settings could not be saved.')
+          return result
+        }} />
       <section className={styles.card} aria-label="Conversation language">
         <label htmlFor="language">Language</label>
         <select id="language" className={styles.language} value={language} lang={language}

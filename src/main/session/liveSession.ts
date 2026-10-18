@@ -1,6 +1,7 @@
 import { runToolCall, type ToolHandlers } from '../gemini/tools'
 import type { LiveClient, LiveEvent, LiveSessionContext, LiveTurn } from '../gemini/types'
 import type { LanguageCode } from '../../shared/languages'
+import type { PrivacyState } from '../../shared/privacy'
 
 export interface LiveSessionSinks {
   playAudio(pcm24Base64: string): void
@@ -24,6 +25,7 @@ export class LiveSessionBridge {
   private micOpen = false
   private stopping?: Promise<void>
   private readonly unsubscribe: () => void
+  private privacy: PrivacyState = { revision: 0, sharing: true, reason: 'sharing' }
 
   constructor(
     private readonly client: LiveClient,
@@ -62,14 +64,21 @@ export class LiveSessionBridge {
   }
 
   updateContext(context: LiveSessionContext): void { if (this.active) this.client.updateContext(context) }
-  sendTurn(turn: LiveTurn): void { if (this.active) this.client.sendTurn(turn) }
-  trySendHabitReview(turn: LiveTurn): boolean { return this.active && !this.micOpen && this.client.trySendHabitReview(turn) }
-  sendFrame(jpegBase64: string): void { if (this.active) this.client.sendFrame(jpegBase64) }
-  sendMicChunk(pcm16Base64: string): void { if (this.active && this.micOpen) this.client.sendAudio(pcm16Base64) }
+  setPrivacy(state: PrivacyState): void {
+    this.setMicOpen(false)
+    this.privacy = state
+    this.client.setPrivacy(state)
+    this.sinks.flushAudio()
+    this.sinks.caption('')
+  }
+  sendTurn(turn: LiveTurn): void { if (this.active && this.privacy.sharing) this.client.sendTurn(turn) }
+  trySendHabitReview(turn: LiveTurn): boolean { return this.active && this.privacy.sharing && !this.micOpen && this.client.trySendHabitReview(turn) }
+  sendFrame(jpegBase64: string): void { if (this.active && this.privacy.sharing) this.client.sendFrame(jpegBase64) }
+  sendMicChunk(pcm16Base64: string): void { if (this.active && this.privacy.sharing && this.micOpen) this.client.sendAudio(pcm16Base64) }
   setCheckinActive(active: boolean): void { this.client.setCheckinActive(active) }
 
   setMicOpen(open: boolean): void {
-    if (!this.active || this.micOpen === open) return
+    if (!this.active || (open && !this.privacy.sharing) || this.micOpen === open) return
     this.micOpen = open
     this.sinks.micSet(open)
     if (!open) this.client.endAudioStream()
@@ -110,6 +119,12 @@ export class LiveSessionBridge {
       return
     }
     const sessionId = this.sessionId
+    const revision = this.privacy.revision
+    if (!this.privacy.sharing && ['tool-call', 'audio', 'transcription', 'user-transcription'].includes(event.type)) {
+      if (event.type === 'tool-call') this.client.sendToolResponse({ id: event.call.id, name: event.call.name,
+        response: { ok: false, error: 'Sharing is paused for privacy.' }, scheduling: 'silent' })
+      return
+    }
     switch (event.type) {
       case 'connection':
         if (event.state === 'reconnecting' || event.state === 'degraded') {
@@ -122,7 +137,12 @@ export class LiveSessionBridge {
       case 'tool-call':
         {
           const response = await runToolCall(event.call, this.handlers)
-          if (this.active && this.sessionId === sessionId) this.client.sendToolResponse(response)
+          if (this.active && this.sessionId === sessionId) {
+            this.client.sendToolResponse(this.privacy.revision === revision && this.privacy.sharing ? response : {
+              id: event.call.id, name: event.call.name, scheduling: 'silent',
+              response: { ok: false, error: 'This action was superseded by a privacy change.' },
+            })
+          }
         }
         break
       case 'audio': this.sinks.playAudio(event.pcm24Base64); break

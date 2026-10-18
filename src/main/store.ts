@@ -6,6 +6,7 @@ import type { AllowListEntry, WindowInfo } from '../shared/types'
 import { addAllowedWindow, StoredStateSchema, type StoredState } from './drift/allowList'
 import { SavedTaskTabSchema, type SavedTaskTab } from './session/taskUrl'
 import { GRACE_HISTORY_LIMIT, GraceReturnSchema } from '../shared/grace'
+import { PrivacySettingsSchema, defaultPrivacySettings, type PrivacySettings } from '../shared/privacy'
 import {
   addHabitEvent, emptyHabitMemory, HabitEventSchema, validateHabitProposal,
   type HabitEvent, type HabitMemory, type HabitProposal,
@@ -30,6 +31,11 @@ export class AppStore {
   get adaptiveGrace(): boolean { return this.state.adaptiveGrace ?? true }
   get geminiGrace(): boolean { return this.state.geminiGrace ?? true }
   get habits(): HabitMemory { return this.state.habits ?? emptyHabitMemory() }
+  get privacy(): PrivacySettings { return this.state.privacy ?? defaultPrivacySettings() }
+  setPrivacy(settings: PrivacySettings): Promise<void> {
+    const privacy = PrivacySettingsSchema.parse(settings)
+    return this.update((state) => ({ ...state, privacy }), 'Privacy settings could not be saved.')
+  }
   flush(): Promise<void> { return this.writes }
 
   recordGraceReturn(durationMs: number): Promise<void> {

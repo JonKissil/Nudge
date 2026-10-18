@@ -1,6 +1,7 @@
 import type { SessionState, WindowInfo } from '../../shared/types'
 import type { LanguageCode } from '../../shared/languages'
 import type { HabitProfile } from '../../shared/habits'
+import type { PrivacyState } from '../../shared/privacy'
 
 export interface LiveSessionContext {
   task: string
@@ -22,6 +23,7 @@ export interface LiveTurn {
   turnComplete: boolean
   checkId?: string
   reviewId?: string
+  privacyRevision?: number
 }
 
 export interface LiveToolCall {
@@ -50,6 +52,7 @@ export type LiveEvent =
   | { type: 'error'; message: string }
 
 export interface LiveClient {
+  setPrivacy(state: PrivacyState): void
   warmup(language?: LanguageCode): Promise<void>
   connect(context: LiveSessionContext): Promise<void>
   disconnect(): Promise<void>

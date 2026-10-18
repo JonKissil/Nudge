@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { IPC, IpcSchemas } from '../src/shared/ipc'
 import { SessionSnapshotSchema, StatusSchema } from '../src/shared/types'
+import { defaultPrivacySettings } from '../src/shared/privacy'
 
 describe('IPC boundaries', () => {
   it('trims task text and rejects missing or invalid setup fields', () => {
@@ -50,6 +51,10 @@ describe('IPC boundaries', () => {
   })
 
   it('keeps empty commands and settings strict', () => {
+    expect(IpcSchemas[IPC.settingsSet].safeParse({ privacy: defaultPrivacySettings() }).success).toBe(true)
+    expect(IpcSchemas[IPC.settingsSet].safeParse({ privacy: { ...defaultPrivacySettings(), excludedDomains: ['https://private.test/path'] } }).success).toBe(false)
+    expect(IpcSchemas[IPC.captureSet].safeParse({ running: true, revision: -1, commandId: 1 }).success).toBe(false)
+    expect(IpcSchemas[IPC.micChunk].safeParse({ pcm16Base64: 'AAAA', revision: -1 }).success).toBe(false)
     expect(IpcSchemas[IPC.sessionEnd].safeParse({ code: 'unexpected' }).success).toBe(false)
     expect(IpcSchemas[IPC.settingsSet].safeParse({ demoMode: true }).success).toBe(true)
     expect(IpcSchemas[IPC.settingsSet].parse({ showHud: true })).toEqual({ showHud: true })

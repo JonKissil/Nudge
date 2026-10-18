@@ -184,6 +184,10 @@ completed components; M8 has a draft deck and script.
 
 ## Stretch (only after M7 passes)
 
+- [x] Requested local privacy controls: approved sources/exclusions, window-only capture and masks,
+  outbound text minimization, revision checks/queue cancellation, sharing indicator, and leak regressions
+  (automated boundaries and native generated-window JPEG/PNG masking, holds, resume, and persistence verified)
+
 - [x] Language support
 - [ ] Custom theme support from uploaded jpg or png file (also font support)
 - [ ] Several included base themes
@@ -621,3 +625,33 @@ completed components; M8 has a draft deck and script.
   both histories/profile. Strict feedback IPC, compact Settings layout, and zero pre-session capture/mic
   forwarding passed. Actual spoken listening acceptance remains open. Typecheck, 176 tests, lint,
   production build, dev launch, and diff checks passed; temporary app instances were closed.
+- 2026-10-17 — Implemented requested local privacy controls. Settings defaults to approved sources
+  only and browser content off; locking approves that task. Explicit app/site exclusions override
+  approvals, missing identities/URLs fail closed, and an excluded task also withholds saved context
+  while another app is foreground. App approvals cover their windows, and site rules cover subdomains.
+  Browser opt-in explains that polling cannot isolate rapid tab changes. No guarantee is made that
+  arbitrary private text inside an approved image can be detected; user masks and Pause remain available.
+- 2026-10-17 — Capture now selects the exact native window source, never a display fallback. The
+  renderer composes it onto a black display-sized canvas and applies title/address-bar and configured
+  masks before diffing/JPEG encoding and full-resolution PNG delivery. Main rechecks the foreground
+  window before accepting a frame. Privacy revisions invalidate media, text/tool queues, frame caches,
+  stale model generations, and OCR work; reconnect cannot replay invalidated content. Outgoing task,
+  OCR, and tool text filters common identifiers/credentials, titles are withheld, and URLs lose their
+  paths/query/fragments. Full recovery URLs and privacy rules stay local in the owner-readable JSON.
+- 2026-10-17 — Privacy holds close the microphone, stop capture/checks, reset drift/learning
+  observations, cancel re-entry work, and show the sharing state in the pill and Settings. An approved
+  source resumes with fresh capture, a manual Pause remains paused, and snoozes retain their remaining
+  duration. Capture-status command IDs fix a native startup race in which an older “off” acknowledgement
+  could pause a newer capture. Late tool calls/results return generic silent denials rather than sending
+  superseded content. Unit/integration tests cover exclusions and domain boundaries, text minimization,
+  masks, holds/timers, migration/persistence, stale queues/generations/reconnects, and capture races.
+- 2026-10-17 — Native privacy acceptance passed using two generated Electron windows with Gemini
+  disabled. The selected window's JPEG (1280 × 801) and full-resolution OCR PNG (2816 × 1762) both had
+  black pixels in the configured hidden area and outside the approved window; the unmasked public area
+  retained its expected color. Switching to the unapproved window held sharing with no accepted-frame
+  increase; returning resumed fresh capture, excluding the app held again, and masks/exclusions were
+  persisted. The compact Settings layout and three renderers passed. Only numeric pixel samples and
+  synthetic fixture metadata were inspected; no screen/audio payloads were saved or sent to Gemini.
+  Typecheck, all 190 tests, lint, production build, dev launch, and diff checks passed. Test instances
+  were closed. The ordinary live Safari/YouTube demo must now explicitly enable browser sharing and
+  approve its intended sites; its prior spoken/listening acceptance remains separate.

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { isBase64 } from './base64'
 import { TimingFeedbackSchema } from './habits'
+import { CapturePolicySchema } from './privacy'
 import {
   CaptureStatusSchema, MicTestResultSchema, OverlayActionSchema, OverlayStateSchema, SessionSnapshotSchema,
   SessionStartSchema, SettingsSchema,
@@ -26,18 +27,20 @@ export const IPC = {
 export const EmptySchema = z.strictObject({})
 const dimensions = { width: z.number().int().positive(), height: z.number().int().positive() }
 const base64 = z.string().refine(isBase64, 'Expected valid base64')
+const revision = z.number().int().nonnegative().default(0)
 
 export const IpcSchemas = {
-  [IPC.frame]: z.strictObject({ jpegBase64: base64, ...dimensions, ts: z.number().nonnegative() }),
-  [IPC.frameFull]: z.strictObject({ pngBase64: base64, ...dimensions }),
-  [IPC.micChunk]: z.strictObject({ pcm16Base64: base64 }),
-  [IPC.micSet]: z.strictObject({ open: z.boolean() }),
+  [IPC.frame]: z.strictObject({ jpegBase64: base64, ...dimensions, ts: z.number().nonnegative(), revision }),
+  [IPC.frameFull]: z.strictObject({ pngBase64: base64, ...dimensions, revision }),
+  [IPC.micChunk]: z.strictObject({ pcm16Base64: base64, revision }),
+  [IPC.micSet]: z.strictObject({ open: z.boolean(), revision }),
   [IPC.audioPlay]: z.strictObject({ pcm24Base64: base64 }),
   [IPC.audioFlush]: EmptySchema,
   [IPC.audioReset]: EmptySchema,
   [IPC.audioChime]: EmptySchema,
   [IPC.frameRequestFull]: EmptySchema,
-  [IPC.captureSet]: z.strictObject({ running: z.boolean() }),
+  [IPC.captureSet]: z.strictObject({ running: z.boolean(), revision,
+    commandId: z.number().int().nonnegative().default(0), policy: CapturePolicySchema.optional() }),
   [IPC.mediaReady]: EmptySchema,
   [IPC.captureStatus]: CaptureStatusSchema,
   [IPC.overlayState]: OverlayStateSchema,

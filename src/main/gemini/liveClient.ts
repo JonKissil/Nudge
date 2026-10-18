@@ -7,6 +7,8 @@ import type { LanguageCode } from '../../shared/languages'
 import { buildLiveConfig } from './config'
 import { contextRestoreTurn } from './prompts'
 import { TOOL_DECLARATIONS } from './tools'
+import type { PrivacyState } from '../../shared/privacy'
+import { sanitizeText, sanitizeWindow } from '../privacy/policy'
 import type {
   LiveClient, LiveEvent, LiveSessionContext, LiveToolResponse, LiveTurn,
 } from './types'
@@ -39,8 +41,28 @@ export class GeminiLiveClient implements LiveClient {
   private connecting?: Promise<void>
   private connectionState: 'connected' | 'reconnecting' | 'degraded' | 'disconnected' = 'disconnected'
   private lastConnectionError?: string
+  private privacy: PrivacyState = { revision: 0, sharing: true, reason: 'sharing' }
+  private generationRevision = 0
 
   constructor(private readonly apiKey = process.env.GEMINI_API_KEY) {}
+
+  setPrivacy(state: PrivacyState): void {
+    this.privacy = state
+    this.turns.length = 0
+    this.responses.length = 0
+    this.audio.length = 0
+    this.latestFrame = undefined
+    this.frameForCheck = undefined
+    this.activeCheckId = undefined
+    this.activeReviewId = undefined
+    this.checkingSilently = true
+    clearTimeout(this.checkTimer)
+    if (this.awaitingTurn || this.modelSpeaking) {
+      this.checkTimer = setTimeout(() => { if (this.awaitingTurn || this.modelSpeaking) void this.beginRecovery() }, DEFAULTS.checkTimeoutMs)
+      this.checkTimer.unref()
+    }
+    if (state.sharing && this.context) this.sendTurn(contextRestoreTurn(this.context, this.context.state ?? 'FOCUSED'))
+  }
 
   onEvent(listener: (event: LiveEvent) => void): () => void {
     this.listeners.add(listener)
@@ -48,7 +70,8 @@ export class GeminiLiveClient implements LiveClient {
   }
 
   updateContext(context: LiveSessionContext): void {
-    this.context = context
+    this.context = { ...context, task: sanitizeText(context.task), taskWindow: sanitizeWindow(context.taskWindow),
+      lastNextStep: context.lastNextStep && sanitizeText(context.lastNextStep) }
     if (context.state === 'PAUSED') this.latestFrame = undefined
   }
 
@@ -61,6 +84,8 @@ export class GeminiLiveClient implements LiveClient {
   }
 
   async connect(context: LiveSessionContext): Promise<void> {
+    context = { ...context, task: sanitizeText(context.task), taskWindow: sanitizeWindow(context.taskWindow),
+      lastNextStep: context.lastNextStep && sanitizeText(context.lastNextStep) }
     if (this.active && !this.context && this.warmLanguage === context.language && this.connectionState !== 'degraded') {
       this.context = context
       // Supply task details to the already-open, generic study-companion session without generating speech.
@@ -143,6 +168,8 @@ export class GeminiLiveClient implements LiveClient {
   }
 
   sendTurn(turn: LiveTurn): void {
+    if (!this.privacy.sharing) return
+    turn = { ...turn, text: sanitizeText(turn.text), privacyRevision: this.privacy.revision }
     // Keep only the newest unsent check when a window changes or a check expires.
     if (turn.tag === 'CHECK') {
       for (let i = this.turns.length - 1; i >= 0; i--) if (this.turns[i]?.tag === 'CHECK') this.turns.splice(i, 1)
@@ -152,7 +179,7 @@ export class GeminiLiveClient implements LiveClient {
   }
 
   trySendHabitReview(turn: LiveTurn): boolean {
-    if (turn.tag !== 'HABIT_REVIEW' || !turn.reviewId || !this.session || !this.context
+    if (!this.privacy.sharing || turn.tag !== 'HABIT_REVIEW' || !turn.reviewId || !this.session || !this.context
       || this.context.state !== 'FOCUSED' || this.connectionState !== 'connected' || this.checkinActive
       || this.awaitingTurn || this.modelSpeaking || this.turns.length || this.responses.length || this.audio.length) return false
     this.sendTurn(turn)
@@ -160,6 +187,7 @@ export class GeminiLiveClient implements LiveClient {
   }
 
   sendFrame(jpegBase64: string): void {
+    if (!this.privacy.sharing || !this.context) return
     this.latestFrame = jpegBase64
     if (!this.session) return
     this.frameForCheck = jpegBase64
@@ -173,6 +201,8 @@ export class GeminiLiveClient implements LiveClient {
   }
 
   sendAudio(pcm16Base64: string): void {
+    if (!this.privacy.sharing || !this.context) return
+    this.generationRevision = this.privacy.revision
     this.checkingSilently = false
     this.activeReviewId = undefined
     if (this.session) {
@@ -192,6 +222,10 @@ export class GeminiLiveClient implements LiveClient {
   }
 
   sendToolResponse(response: LiveToolResponse): void {
+    response = { ...response, response: this.privacy.sharing
+      ? JSON.parse(JSON.stringify(response.response, (_key, value: unknown) => typeof value === 'string' ? sanitizeText(value) : value)) as Record<string, unknown>
+      : { ok: false, error: 'Sharing is paused for privacy.' },
+    scheduling: this.privacy.sharing ? response.scheduling : 'silent' }
     this.responses.push(response)
     this.flushResponses()
   }
@@ -214,7 +248,7 @@ export class GeminiLiveClient implements LiveClient {
   }
 
   private async open(handle: string | undefined, lifecycleId: number): Promise<void> {
-    const context = this.context
+    const context = this.privacy.sharing ? this.context : undefined
     const ai = this.ai
     if (!ai || !this.isCurrent(lifecycleId)) return
     const id = ++this.connectionId
@@ -254,7 +288,7 @@ export class GeminiLiveClient implements LiveClient {
     this.activeReviewId = undefined
     this.emit({ type: 'connection', state: 'connected', resumed: Boolean(handle) })
     this.flushResponses()
-    if (this.latestFrame) session.sendRealtimeInput({ video: { data: this.latestFrame, mimeType: 'image/jpeg' } })
+    if (this.privacy.sharing && this.latestFrame) session.sendRealtimeInput({ video: { data: this.latestFrame, mimeType: 'image/jpeg' } })
     for (const chunk of this.audio.splice(0)) this.sendAudio(chunk)
     this.flushTurns()
   }
@@ -294,7 +328,7 @@ export class GeminiLiveClient implements LiveClient {
     if (tryResume && this.isCurrent(lifecycleId)) {
       try {
         await this.open(undefined, lifecycleId)
-        if (this.isCurrent(lifecycleId) && this.session && this.context) {
+        if (this.isCurrent(lifecycleId) && this.session && this.context && this.privacy.sharing) {
           this.sendTurn(contextRestoreTurn(this.context, this.context.state ?? 'FOCUSED'))
           return
         }
@@ -315,7 +349,8 @@ export class GeminiLiveClient implements LiveClient {
     if (message.goAway) { void this.beginRecovery(); return }
     for (const call of message.toolCall?.functionCalls ?? []) {
       if (!call.id || !call.name) continue
-      if ((this.activeReviewId && call.name !== 'propose_grace_period')
+      if (!this.privacy.sharing || this.generationRevision !== this.privacy.revision
+        || (this.activeReviewId && call.name !== 'propose_grace_period')
         || (call.name === 'propose_grace_period' && !this.activeReviewId)) {
         this.sendToolResponse({ id: call.id, name: call.name, scheduling: 'silent',
           response: { ok: false, error: 'This tool is unavailable for the current turn.' } })
@@ -323,16 +358,17 @@ export class GeminiLiveClient implements LiveClient {
     }
     const content = message.serverContent
     if (!content) return
-    if (content.inputTranscription?.text?.trim()) {
+    const permitted = this.privacy.sharing && this.generationRevision === this.privacy.revision
+    if (permitted && content.inputTranscription?.text?.trim()) {
       this.emit({ type: 'user-transcription', text: content.inputTranscription.text })
     }
     for (const part of content.modelTurn?.parts ?? []) {
       if (part.inlineData?.data && part.inlineData.mimeType?.startsWith('audio/')) {
         this.modelSpeaking = true
-        if (!this.checkingSilently) this.emit({ type: 'audio', pcm24Base64: part.inlineData.data })
+        if (permitted && !this.checkingSilently) this.emit({ type: 'audio', pcm24Base64: part.inlineData.data })
       }
     }
-    if (content.outputTranscription?.text && !this.checkingSilently) this.emit({ type: 'transcription', text: content.outputTranscription.text })
+    if (permitted && content.outputTranscription?.text && !this.checkingSilently) this.emit({ type: 'transcription', text: content.outputTranscription.text })
     if (content.interrupted) this.emit({ type: 'interrupted' })
     if (content.interrupted || content.turnComplete || content.generationComplete) {
       this.modelSpeaking = false
@@ -352,8 +388,9 @@ export class GeminiLiveClient implements LiveClient {
   }
 
   private flushTurns(): void {
-    while (this.session && this.turns.length > 0) {
+    while (this.privacy.sharing && this.session && this.turns.length > 0) {
       const next = this.turns[0]
+      if (next?.privacyRevision !== this.privacy.revision) { this.turns.shift(); continue }
       // The first capture after this request replaces any stale picture of the previous tab.
       if (next?.checkId && !this.frameForCheck) return
       // A nudge may be queued behind a silent [CHECK] as check-in opens. Deliver that
@@ -363,6 +400,7 @@ export class GeminiLiveClient implements LiveClient {
       ))) return
       this.turns.shift()
       if (next.turnComplete) {
+        this.generationRevision = this.privacy.revision
         this.activeCheckId = next.checkId
         this.activeReviewId = next.reviewId
         this.checkingSilently = next.tag === 'CHECK' || next.tag === 'HABIT_REVIEW'

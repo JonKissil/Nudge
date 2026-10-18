@@ -32,6 +32,10 @@ import { DocumentReentry } from './documentReentry'
 import { OcrService } from '../ocr/ocr'
 import { overlayExclusions } from '../ocr/geometry'
 import { TAB_STRIP_HEIGHT } from '../ocr/tabStrip'
+import { PrivacyController } from '../privacy/controller'
+import { sanitizeText, sanitizeWindow, sharingDecision } from '../privacy/policy'
+import type { LiveSessionContext } from '../gemini/types'
+import { PRIVACY_MESSAGES } from '../../shared/privacy'
 
 export interface SessionHooks {
   // M2 calls this after its three-second active-window lock resolves.
@@ -97,7 +101,8 @@ export function registerScaffoldIpc(
     for (const listener of snapshotListeners) listener(snapshot)
     const sessionOverlay = OverlayStateSchema.parse({
       pill: { state: snapshot.state, offline: snapshot.conn === 'degraded',
-        snoozeUntil: study.state.snoozeUntil, micOpen: snapshot.micOpen },
+        snoozeUntil: study.state.snoozeUntil, micOpen: snapshot.micOpen,
+        privacyHeld: study.state.privacyHeldAt !== undefined },
       nudge: nudgeVisible ? { text: 'Still with your task, or taking a break?' } : undefined,
       ...guidance,
       notes: sessionNotes, caption,
@@ -131,6 +136,7 @@ export function registerScaffoldIpc(
   }
 
   const log = (message: string): void => {
+    message = sanitizeText(message)
     snapshot = { ...snapshot, stats: { ...snapshot.stats, logs: [...snapshot.stats.logs, message].slice(-50) } }
     console.info(message)
     publish()
@@ -138,13 +144,21 @@ export function registerScaffoldIpc(
 
   const syncMic = (): void => {
     const active = !['IDLE', 'SETUP', 'PAUSED', 'ENDED'].includes(study.state.phase)
-    const open = active && snapshot.conn === 'connected' && (checkinMicOpen || pushToTalkOpen)
+    const open = active && privacy.state.sharing && study.state.privacyHeldAt === undefined
+      && snapshot.conn === 'connected' && (checkinMicOpen || pushToTalkOpen)
     live.setMicOpen(open)
     snapshot = { ...snapshot, micOpen: open }
   }
 
+  const contextForModel = (context: LiveSessionContext): LiveSessionContext => ({ ...context,
+    task: sanitizeText(context.task), lastNextStep: context.lastNextStep && sanitizeText(context.lastNextStep),
+    taskWindow: sharingDecision(context.taskWindow, context.taskWindow, privacy.settings, process.pid) === 'sharing'
+      ? sanitizeWindow(context.taskWindow) : { app: '[Task window withheld]', title: '[Window title withheld]',
+        bundleId: '', bounds: context.taskWindow.bounds },
+  })
+
   const ports: EffectPorts = {
-    startLive: (context) => live.start({ ...context,
+    startLive: (context) => live.start({ ...contextForModel(context),
       habitProfile: store.adaptiveGrace && store.geminiGrace && !snapshot.settings.demoMode ? store.habits.profile : undefined,
     }), stopLive: () => live.stop(),
     sendTurn: (turn) => { if (snapshot.conn !== 'degraded') live.sendTurn(turn) }, setMicOpen: (open) => {
@@ -162,17 +176,23 @@ export function registerScaffoldIpc(
     focusTask: (window) => actions?.focusTask(window) ?? returns.focus(window),
     guideTask: (window) => actions?.guideTask(window) ?? returns.guide(window),
     ocrLines: async () => {
-      try { return await (actions ? actions.ocrLines() : document.readLines()) }
+      const revision = privacy.state.revision
+      if (!privacy.current(revision)) return []
+      try {
+        const lines = await (actions ? actions.ocrLines() : document.readLines())
+        return privacy.current(revision) ? lines.map(sanitizeText) : []
+      }
       catch { log('OCR unavailable; using a margin note.'); return [] }
     },
     pinNote: async (text, lineId) => {
+      const revision = privacy.state.revision
       const generation = document.generation
       let lineAnchor: NormalizedBox | undefined
       if (lineId !== 'none') {
         try { lineAnchor = actions ? await actions.locateLine?.(lineId) : await document.locateLine(lineId) }
         catch { log('Line location unavailable; using the document margin.') }
       }
-      if (generation !== document.generation || !['FOCUSED', 'REENTRY'].includes(study.state.phase)) {
+      if (!privacy.current(revision) || generation !== document.generation || !['FOCUSED', 'REENTRY'].includes(study.state.phase)) {
         throw new Error('This return has ended; the note was cancelled.')
       }
       sessionNotes = [createSessionNote(
@@ -196,10 +216,15 @@ export function registerScaffoldIpc(
       .catch(() => log('Timing history could not be saved.'))
   }
   const study = new StudyEngine(demoMode ? DEMO : DEFAULTS, ports, (state, previous, event) => {
-    const learning = snapshot.settings.demoMode || snapshot.settings.adaptiveGrace === false
+    if (previous.phase === 'SETUP' && state.phase === 'FOCUSED') privacy.observe(state.taskWindow)
+    if (state.phase !== previous.phase && ['PAUSED', 'ENDED', 'SETUP'].includes(state.phase)) privacy.suspend()
+    if (previous.phase === 'PAUSED' && state.phase === 'FOCUSED') void Promise.resolve().then(() => perception.refreshWindow())
+    const learning = !privacy.state.sharing || state.privacyHeldAt !== undefined
+      || snapshot.settings.demoMode || snapshot.settings.adaptiveGrace === false
       ? {} : observeGraceReturn(learningSince, previous, state, Date.now())
     learningSince = learning.since
-    const habits = snapshot.settings.demoMode || !store.adaptiveGrace || !store.geminiGrace ? {}
+    const habits = !privacy.state.sharing || state.privacyHeldAt !== undefined
+      || snapshot.settings.demoMode || !store.adaptiveGrace || !store.geminiGrace ? {}
       : observeHabitEpisode(habitEpisode, previous, state, event, Date.now(), randomUUID())
     habitEpisode = habits.episode
     if (habits.event) saveHabitEvent(habits.event)
@@ -220,11 +245,11 @@ export function registerScaffoldIpc(
     else if (previous.phase === 'REENTRY' && state.phase !== 'REENTRY') document.finish()
     if (previous.phase === 'RETURNING' && state.phase !== 'RETURNING') returns.cancel()
     if (state.phase === 'PAUSED' || state.phase === 'ENDED') pushToTalkOpen = false
-    if (state.taskWindow) live.updateContext({
+    if (state.taskWindow) live.updateContext(contextForModel({
       task: state.task, minutes: state.minutes, language: state.language, taskWindow: state.taskWindow,
       state: state.phase, lastNextStep: state.lastNextStep,
       habitProfile: store.adaptiveGrace && store.geminiGrace && !snapshot.settings.demoMode ? store.habits.profile : undefined,
-    })
+    }))
     snapshot = { ...snapshot, state: state.phase, task: state.task, minutes: state.minutes, language: state.language,
       taskWindow: state.taskWindow, lastStatus: state.lastStatus,
       stats: { ...snapshot.stats, currentWindow: state.currentWindow,
@@ -239,6 +264,7 @@ export function registerScaffoldIpc(
     if (state.phase === 'ENDED' || (state.phase === 'SETUP' && previous.phase !== 'SETUP')) recovery.stop()
   })
   const recordTimingFeedback = async ({ preference }: TimingFeedback): Promise<ActionResult> => {
+    if (!privacy.state.sharing) return { ok: false, error: 'Sharing is paused for privacy.' }
     if (snapshot.settings.demoMode || !store.adaptiveGrace || !store.geminiGrace) {
       return { ok: false, error: 'Enable Gemini timing reviews outside demo mode to save feedback.' }
     }
@@ -247,7 +273,7 @@ export function registerScaffoldIpc(
     }
     const saved = await store.recordHabitEvent({ id: randomUUID(), graceMs: study.state.config.graceMs,
       kind: preference === 'more-time' ? 'feedback-more-time' : 'feedback-sooner' },
-    () => !snapshot.settings.demoMode && ['FOCUSED', 'DRIFTING', 'CHECKIN', 'SNOOZED'].includes(study.state.phase))
+    () => privacy.state.sharing && !snapshot.settings.demoMode && ['FOCUSED', 'DRIFTING', 'CHECKIN', 'SNOOZED'].includes(study.state.phase))
     if (!saved) return { ok: false, error: 'Timing feedback was cancelled because the session or settings changed.' }
     refreshHabitStats()
     publish()
@@ -269,7 +295,7 @@ export function registerScaffoldIpc(
     resetAudio: () => getWindows()?.media.webContents.send(IPC.audioReset, {}),
     caption: (text) => { caption = text; publish() },
     userSpeech: () => { lastStudentSpeechAt = Date.now(); habitReviewer.cancel(); void study.dispatch({ type: 'USER_SPEECH' }) },
-    micSet: (open) => getWindows()?.media.webContents.send(IPC.micSet, { open }),
+    micSet: (open) => getWindows()?.media.webContents.send(IPC.micSet, { open, revision: privacy.state.revision }),
     connection: (conn) => {
       if (conn !== 'connected') habitReviewer.cancel()
       if (conn === 'disconnected') handleReceivedAt = undefined
@@ -296,12 +322,17 @@ export function registerScaffoldIpc(
     if (snapshot.state !== 'SETUP') return { ok: false, error: 'Save a task before locking its window.' }
     const taskWindow = WindowInfoSchema.safeParse(window)
     if (!taskWindow.success) return { ok: false, error: 'Invalid task window.' }
+    const reason = sharingDecision(taskWindow.data, taskWindow.data, privacy.settings, process.pid)
+    if (reason !== 'sharing') return { ok: false, error: `${PRIVACY_MESSAGES[reason]}. Review Privacy in Settings.` }
     return study.dispatch({ type: 'LOCK_WINDOW', window: taskWindow.data })
   }
   const observeWindow = async (window: WindowInfo, verdict: RuleVerdict,
     matchesTask: boolean): Promise<ActionResult> => {
     const parsed = WindowInfoSchema.safeParse(window)
     if (!parsed.success) return { ok: false, error: 'Invalid active window.' }
+    if (['IDLE', 'SETUP', 'PAUSED', 'ENDED'].includes(study.state.phase)) return { ok: true }
+    privacy.observe(parsed.data)
+    if (!privacy.state.sharing) return { ok: true }
     observed = { window: parsed.data, verdict, matchesTask }
     snapshot = { ...snapshot, stats: { ...snapshot.stats, ruleVerdict: verdict } }
     return study.dispatch({ type: 'WINDOW_OBSERVED', ...observed,
@@ -315,10 +346,40 @@ export function registerScaffoldIpc(
     activateTaskWindow, observeWindow,
     onWindowUnavailable: () => { observed = undefined; void study.dispatch({ type: 'WINDOW_UNAVAILABLE' }) },
     pause: () => study.dispatch({ type: 'PAUSE' }),
+    privacy: { controller: () => privacy, capturePolicy: () => {
+      const display = screen.getPrimaryDisplay()
+      return privacy.capturePolicy(display.bounds, display.scaleFactor ?? 1)
+    } },
     publish, log,
   })
   const store = new AppStore(join(app.getPath('userData'), 'state.json'), (message) => log(message))
-  snapshot = { ...snapshot, settings: { ...snapshot.settings, adaptiveGrace: store.adaptiveGrace, geminiGrace: store.geminiGrace } }
+  snapshot = { ...snapshot, settings: { ...snapshot.settings, adaptiveGrace: store.adaptiveGrace,
+    geminiGrace: store.geminiGrace, privacy: store.privacy } }
+  const privacy: PrivacyController = new PrivacyController({ task: () => study.state.taskWindow, ownProcessId: process.pid,
+    changed: (state) => {
+      snapshot = { ...snapshot, privacy: state, micOpen: false }
+      if (study.state.taskWindow) live.updateContext(contextForModel({
+        task: study.state.task, minutes: study.state.minutes, language: study.state.language,
+        taskWindow: study.state.taskWindow, state: study.state.phase, lastNextStep: study.state.lastNextStep,
+      }))
+      live.setPrivacy(state)
+      checkinMicOpen = false
+      pushToTalkOpen = false
+      lastStudentSpeechAt = 0
+      observed = undefined
+      learningSince = undefined
+      habitEpisode = undefined
+      habitReviewer.cancel()
+      document.reset()
+      returns.cancel()
+      caption = ''
+      sessionNotes = []
+      if (!state.sharing) void study.dispatch({ type: 'PRIVACY_HOLD' })
+      else void study.dispatch({ type: 'PRIVACY_RELEASE' })
+      perception.invalidatePrivacy()
+      publish()
+    },
+  })
   const nextGraceMs = (): number => selectHabitGraceMs(store.graceHistory, store.adaptiveGrace,
     snapshot.settings.demoMode, store.geminiGrace, store.habits.profile)
   const refreshHabitStats = (): void => {
@@ -326,7 +387,7 @@ export function registerScaffoldIpc(
       habitProfile: store.habits.profile, nextGraceMs: nextGraceMs() } }
   }
   const habitReviewer: HabitReviewer = new HabitReviewer({ store,
-    eligible: () => store.adaptiveGrace && store.geminiGrace && !snapshot.settings.demoMode
+    eligible: () => privacy.state.sharing && store.adaptiveGrace && store.geminiGrace && !snapshot.settings.demoMode
       && snapshot.conn === 'connected' && !snapshot.micOpen && study.state.phase === 'FOCUSED'
       && !study.state.checkPending && Boolean(study.state.currentWindow && study.state.taskWindow
         && matchWindow(study.state.currentWindow, study.state.taskWindow)),
@@ -349,16 +410,17 @@ export function registerScaffoldIpc(
   const document = new DocumentReentry({
     getPhase: () => study.state.phase, getTask: () => study.state.taskWindow,
     getDisplay: () => screen.getPrimaryDisplay().bounds,
-    getExclusions: () => overlayExclusions(screen.getPrimaryDisplay().bounds, caption),
+    getExclusions: () => [...overlayExclusions(screen.getPrimaryDisplay().bounds, caption), ...privacy.settings.masks],
     readWindow: () => perception.readCurrentWindow(), requestFrame: () => perception.requestFullFrame(),
     recognize: (png, region, signal) => ocr.readRegion(png, region, signal), log,
   })
   const recovery = new TaskRecovery({
-    getPhase: () => study.state.phase, readUrl: (window) => perception.readTaskUrl(window),
+    getPhase: () => privacy.state.sharing ? study.state.phase : 'PAUSED', readUrl: (window) => perception.readTaskUrl(window),
     updateUrl: (url) => study.dispatch({ type: 'TASK_URL_UPDATED', url }),
     save: (task) => store.saveTaskTab(task), log,
   })
   app.once('before-quit', () => { live.dispose(); document.reset(); returns.dispose(); ocr.dispose(); recovery.dispose(); perception.dispose() })
+  privacy.configure(store.privacy)
   void applyGraceConfig()
   // Open the API while the student fills out setup; screen/mic forwarding still requires a locked session.
   live.warmup()
@@ -372,7 +434,7 @@ export function registerScaffoldIpc(
     const now = Date.now()
     if (now - lastCheckAt >= tickMs) {
       lastCheckAt = now
-      if (observed && (study.state.phase === 'FOCUSED' || study.state.phase === 'DRIFTING')) {
+      if (privacy.state.sharing && observed && (study.state.phase === 'FOCUSED' || study.state.phase === 'DRIFTING')) {
         void study.dispatch({ type: 'WINDOW_OBSERVED', ...observed,
           verdict: effectiveVerdict(observed.verdict, snapshot.conn) })
       }
@@ -464,6 +526,11 @@ export function registerScaffoldIpc(
   handle(IPC.sessionPauseToggle, EmptySchema, togglePause)
   handle(IPC.sessionLockWindow, EmptySchema, () => perception.lockWindow())
   handle(IPC.settingsSet, IpcSchemas[IPC.settingsSet], async (settings) => {
+    if (settings.privacy) {
+      snapshot = { ...snapshot, settings: { ...snapshot.settings, privacy: settings.privacy } }
+      privacy.configure(settings.privacy)
+      await store.setPrivacy(settings.privacy)
+    }
     habitReviewer.cancel()
     habitEpisode = undefined
     if (settings.adaptiveGrace !== undefined) await store.setAdaptiveGrace(settings.adaptiveGrace)
@@ -535,12 +602,15 @@ export function registerScaffoldIpc(
           pendingMicTest = undefined
         }
       } else if (channel === IPC.frameFull) {
-        perception.handleFullFrame(IpcSchemas[IPC.frameFull].parse(parsed.data))
+        void perception.handleFullFrame(IpcSchemas[IPC.frameFull].parse(parsed.data))
       } else if (channel === IPC.frame) {
         const frame = IpcSchemas[IPC.frame].parse(parsed.data)
-        if (perception.acceptFrame()) { live.sendFrame(frame.jpegBase64); publish() }
+        void perception.validateFrame(frame.revision).then((valid) => {
+          if (valid && privacy.current(frame.revision) && perception.acceptFrame()) { live.sendFrame(frame.jpegBase64); publish() }
+        }).catch(() => { privacy.observe(undefined) })
       } else if (channel === IPC.micChunk) {
-        live.sendMicChunk(IpcSchemas[IPC.micChunk].parse(parsed.data).pcm16Base64)
+        const chunk = IpcSchemas[IPC.micChunk].parse(parsed.data)
+        if (privacy.current(chunk.revision)) live.sendMicChunk(chunk.pcm16Base64)
       } else if (channel === IPC.overlayAction) {
         const action = IpcSchemas[IPC.overlayAction].parse(parsed.data)
         if ((snapshot.state === 'IDLE' || snapshot.state === 'ENDED')
@@ -583,6 +653,7 @@ export function registerScaffoldIpc(
     requestFullFrame: () => perception.requestFullFrame(),
     dispose: () => { live.dispose(); document.reset(); returns.dispose(); ocr.dispose(); recovery.dispose(); perception.dispose() },
     togglePushToTalk: () => {
+      if (!privacy.state.sharing) return { ok: false, error: 'Sharing is paused for privacy.' }
       if (['IDLE', 'SETUP', 'PAUSED', 'ENDED'].includes(study.state.phase)) {
         return { ok: false, error: 'Start or resume a study session to use push-to-talk.' }
       }

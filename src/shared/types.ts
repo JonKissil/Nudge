@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { LanguageCodeSchema } from './languages'
 import { HabitProfileSchema, HABIT_HISTORY_LIMIT } from './habits'
+import { PrivacySettingsSchema, PrivacyStateSchema } from './privacy'
 
 export const SessionStateSchema = z.enum([
   'IDLE', 'SETUP', 'FOCUSED', 'DRIFTING', 'NUDGING', 'CHECKIN',
@@ -39,10 +40,12 @@ export const StatusSchema = z.strictObject({
 })
 export type Status = z.infer<typeof StatusSchema>
 export const SettingsSchema = z.strictObject({ demoMode: z.boolean(), showHud: z.boolean(),
-  adaptiveGrace: z.boolean().optional(), geminiGrace: z.boolean().optional() })
+  adaptiveGrace: z.boolean().optional(), geminiGrace: z.boolean().optional(), privacy: PrivacySettingsSchema.optional() })
 export type Settings = z.infer<typeof SettingsSchema>
 export const CaptureStatusSchema = z.strictObject({
   state: z.enum(['off', 'starting', 'running', 'error']), error: z.string().max(500).optional(),
+  revision: z.number().int().nonnegative().optional(),
+  commandId: z.number().int().nonnegative().optional(),
 })
 export type CaptureStatus = z.infer<typeof CaptureStatusSchema>
 export const PermissionStatusSchema = z.strictObject({
@@ -74,6 +77,7 @@ export type HudStats = z.infer<typeof HudStatsSchema>
 export const PillStateSchema = z.strictObject({
   state: SessionStateSchema, offline: z.boolean(), snoozeUntil: z.number().nonnegative().optional(),
   micOpen: z.boolean().optional(),
+  privacyHeld: z.boolean().optional(),
 })
 export type PillState = z.infer<typeof PillStateSchema>
 export const NudgeViewSchema = z.strictObject({ text: z.string().min(1) })
@@ -114,6 +118,7 @@ export const SessionSnapshotSchema = z.strictObject({
   lockError: z.string().optional(),
   connectionIssue: z.string().optional(),
   overlayPreview: OverlayPreviewSchema.optional(),
+  privacy: PrivacyStateSchema.optional(),
 })
 export type SessionSnapshot = z.infer<typeof SessionSnapshotSchema>
 export const ActionResultSchema = z.discriminatedUnion('ok', [
