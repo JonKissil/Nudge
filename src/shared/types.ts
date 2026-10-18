@@ -43,6 +43,7 @@ export type Theme = z.infer<typeof ThemeSchema>
 export const SettingsSchema = z.strictObject({
   demoMode: z.boolean(), showHud: z.boolean(), theme: ThemeSchema.default('minimalist'),
   adaptiveGrace: z.boolean().optional(), geminiGrace: z.boolean().optional(),
+  quietMode: z.boolean(),
 })
 export type Settings = z.infer<typeof SettingsSchema>
 export const CaptureStatusSchema = z.strictObject({
@@ -77,7 +78,7 @@ export const HudStatsSchema = z.strictObject({
 export type HudStats = z.infer<typeof HudStatsSchema>
 export const PillStateSchema = z.strictObject({
   state: SessionStateSchema, offline: z.boolean(), snoozeUntil: z.number().nonnegative().optional(),
-  micOpen: z.boolean().optional(),
+  micOpen: z.boolean().optional(), quietMode: z.boolean().optional(),
 })
 export type PillState = z.infer<typeof PillStateSchema>
 export const NudgeViewSchema = z.strictObject({ text: z.string().min(1) })
@@ -96,7 +97,7 @@ export const OverlayStateSchema = z.strictObject({
 })
 export type OverlayState = z.infer<typeof OverlayStateSchema>
 export const OverlayActionSchema = z.strictObject({
-  kind: z.enum(['take-me-back', 'snooze', 'allow', 'dismiss-note', 'pause', 'resume']),
+  kind: z.enum(['take-me-back', 'guide-me', 'snooze', 'allow', 'dismiss-note', 'pause', 'resume']),
   id: z.string().min(1).optional(),
 }).refine((value) => value.kind !== 'dismiss-note' || value.id !== undefined, 'A note id is required')
 export type OverlayAction = z.infer<typeof OverlayActionSchema>

@@ -9,6 +9,7 @@ export const StoredStateSchema = z.strictObject({
   version: z.literal(1), allowList: z.array(AllowListEntrySchema).max(1000),
   lockedTask: SavedTaskTabSchema.optional(),
   theme: ThemeSchema.optional(),
+  quietMode: z.boolean().catch(false).optional(),
   graceHistory: GraceHistorySchema.catch([]).optional(), adaptiveGrace: z.boolean().catch(false).optional(),
   geminiGrace: z.boolean().catch(false).optional(),
   habits: HabitMemorySchema.catch(emptyHabitMemory).optional(),

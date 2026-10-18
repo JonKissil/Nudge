@@ -21,3 +21,20 @@ describe('saved theme', () => {
     expect(errors).toEqual([])
   })
 })
+
+describe('Quiet Mode preference', () => {
+  it('defaults to voice, survives reopening, and leaves other settings intact', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'nudge-quiet-'))
+    directories.push(directory)
+    const path = join(directory, 'state.json')
+    const store = new AppStore(path, () => {})
+    expect(store.quietMode).toBe(false)
+    await store.saveTheme('playful')
+    await store.saveQuietMode(true)
+    const restored = new AppStore(path, () => {})
+    expect(restored.quietMode).toBe(true)
+    expect(restored.theme).toBe('playful')
+    await restored.saveQuietMode(false)
+    expect(new AppStore(path, () => {}).quietMode).toBe(false)
+  })
+})

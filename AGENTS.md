@@ -80,6 +80,9 @@ Generality (Windows, other browsers, multi-monitor) comes later and is out of sc
 - **The model doesn't decide *when* to talk; the app does.** The model responds to turns, not frames. The app sends tagged
   text turns (§6.4); the model reports status through a tool call silently and speaks only on `[NUDGE]`,
   when the student talks, or on `[USER_RETURNED]`.
+- **Quiet Mode** is a saved, live-toggleable preference. It keeps the mic closed, flushes and suppresses model
+  speech, skips spoken greeting/nudge turns, and uses local chimes with the overlay controls. Re-entry still
+  sends `[USER_RETURNED]` so the model can pin a next step; any generated speech is discarded while captions remain.
 - **The app owns time.** Grace periods, snoozes, and nudge rate limits run in deterministic code.
   Requested habit learning allows Gemini to recommend next-session grace timing; local evidence checks
   and bounds decide whether to accept it. The active session's timing remains fixed.
@@ -257,6 +260,10 @@ about these tags in the system instruction.
 | `[ARRIVED]` | Guided return succeeded | (sent together with `USER_RETURNED`) | Same as above. |
 | `[SNOOZE_OVER]` | Snooze timer ends | false | Context only. |
 | `[CONTEXT_RESTORE]` | Adopting a boot connection, or after a fresh reconnect | false | Replace session context silently. |
+
+In Quiet Mode the app omits `[SESSION_START]` and `[NUDGE]` turns, plays a nudge chime with the card,
+and plays a distinct return chime when the next-step note appears. It still sends `[CHECK]` and
+`[USER_RETURNED]` for classification and pinning.
 
 The `[CHECK]` payload always includes the current window, because text is a much stronger signal than pixels alone:
 
@@ -471,7 +478,7 @@ export const DEMO = { ...DEFAULTS, tickMs: 4_000, graceMs: 15_000, checkinSilenc
   tell the model in the system instruction that the small "Nudge" UI is its own and should be ignored for task judgment.
 - **Components:**
   - `Pill`: small, top-right. Shows state (focused / snoozed 4:12 / paused) and has a pause button.
-  - `NudgeCard`: the nudge text plus three buttons that mirror voice: *Take me back*, *5 more min*, *This is for my task*.
+  - `NudgeCard`: the nudge text plus *Take me back*, *Show me how*, *5 more min*, and *This is for my task*.
     The buttons dispatch the same events as the tools, so everything works without voice.
   - `Arrow`: animated arrow toward a screen point, with a label.
   - `StickyNote`: anchored to a box, slightly offset into the right margin. Dismissible. Auto-fades after 3 minutes.
@@ -548,6 +555,8 @@ export const DEMO = { ...DEFAULTS, tickMs: 4_000, graceMs: 15_000, checkinSilenc
   jitter cushion. Preserve sample continuity across chunk boundaries, ramp gain smoothly as the stream
   runs dry or refills, and clear the worklet queue on `interrupted`. On study-session end, close the audio context and create
   a fresh one for the next session.
+- **Quiet Mode:** close the mic and flush current speech immediately when enabled, discard later model audio,
+  and play local nudge/return chimes through the media window. Captions and on-screen controls stay available.
 - **Recommend headphones for the demo** to prevent echo; barge-in still works.
 
 ## 13. IPC contract (`src/shared/types.ts`)
@@ -568,6 +577,7 @@ an encoding operation cancelled by Pause/End.
 'audio:play'     { pcm24Base64: string }
 'audio:flush'    {}
 'audio:reset'    {}                                                // close playback on session end
+'audio:chime'    { cue: 'nudge' | 'return' }
 'frame:request-full' {}
 'capture:set'    { running: boolean }
 'mic:test-start' { id: string }                                      // local probe, no Gemini forwarding
@@ -576,7 +586,7 @@ an encoding operation cancelled by Pause/End.
 // main → overlay
 'overlay:state'  { pill: PillState; nudge?: NudgeView; arrow?: ArrowView; notes: NoteView[]; caption?: string }
 // overlay → main
-'overlay:action' { kind: 'take-me-back' | 'snooze' | 'allow' | 'dismiss-note' | 'pause' | 'resume'; id?: string }
+'overlay:action' { kind: 'take-me-back' | 'guide-me' | 'snooze' | 'allow' | 'dismiss-note' | 'pause' | 'resume'; id?: string }
 'overlay:hover'  { interactive: boolean }
 // control ↔ main
 'session:start'  { task: string; minutes: number; language?: LanguageCode } // picker sends it; omitted defaults to English/current setup choice
@@ -604,7 +614,7 @@ an encoding operation cancelled by Pause/End.
   ("History essay: causes of the French Revolution", 30 min), and shows the HUD.
 - **Control navigation:** the default home page contains only the task field, duration, and save/start
   controls, with a Settings button. Settings contains the language picker, session actions, demo/HUD toggles, permissions,
-  overlay previews, shortcuts, and diagnostics. Keep marketing copy off the home page. The control
+  Quiet Mode toggle, overlay previews, shortcuts, and diagnostics. Keep marketing copy off the home page. The control
   window is a fixed 440 × 440 square, centered in the primary display's work area on launch/reopen.
   Keep the setup form compact; Settings scrolls inside the same window with its navigation visible.
 - **Dev HUD** (on the control window's Settings page): state, the current window's rule verdict, the last `report_status`, frames per

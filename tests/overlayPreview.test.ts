@@ -40,6 +40,7 @@ describe('overlay preview', () => {
     expect(returned.pill.state).toBe('FOCUSED')
     expect(returned.nudge).toBeUndefined()
     expect(returned.notes).toHaveLength(1)
+    expect(applyPreviewAction(state, { kind: 'guide-me' }, 2000).arrow?.label).toBe('Your essay’s here')
     expect(state.pill.state).toBe('CHECKIN')
   })
 })

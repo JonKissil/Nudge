@@ -14,7 +14,7 @@ describe('full-resolution capture requests', () => {
   it('rejects a failed frame immediately without stopping streaming and accepts the next request', async () => {
     let snapshot = SessionSnapshotSchema.parse({
       state: 'FOCUSED', conn: 'connected', task: 'Essay', minutes: 30, language: 'en',
-      settings: { demoMode: false, showHud: false },
+      settings: { demoMode: false, showHud: false, quietMode: false },
       stats: { capture: { state: 'running' }, framesPerMinute: 0,
         resumptionHandleAgeMs: null, transitions: [], logs: [] },
     })

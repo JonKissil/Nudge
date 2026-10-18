@@ -59,7 +59,8 @@ export function registerScaffoldIpc(
   let snapshot: SessionSnapshot = SessionSnapshotSchema.parse({
     state: 'IDLE', conn: 'disconnected', task: demoMode ? DEMO_TASK : '', minutes: 30, language: 'en',
     overlayPreview: 'hidden',
-    settings: { demoMode, showHud: demoMode, theme: 'minimalist', adaptiveGrace: true, geminiGrace: true },
+    settings: { demoMode, showHud: demoMode, theme: 'minimalist', adaptiveGrace: true, geminiGrace: true,
+      quietMode: false },
     stats: { framesPerMinute: 0, resumptionHandleAgeMs: null, transitions: [], logs: [], capture: { state: 'off' } },
   })
   let previewOverlay: OverlayState = createOverlayPreview('hidden', Date.now())
@@ -97,7 +98,8 @@ export function registerScaffoldIpc(
     for (const listener of snapshotListeners) listener(snapshot)
     const sessionOverlay = OverlayStateSchema.parse({
       pill: { state: snapshot.state, offline: snapshot.conn === 'degraded',
-        snoozeUntil: study.state.snoozeUntil, micOpen: snapshot.micOpen },
+        snoozeUntil: study.state.snoozeUntil, micOpen: snapshot.micOpen,
+        quietMode: snapshot.settings.quietMode },
       nudge: nudgeVisible ? { text: 'Still with your task, or taking a break?' } : undefined,
       ...guidance,
       notes: sessionNotes, caption,
@@ -138,7 +140,8 @@ export function registerScaffoldIpc(
 
   const syncMic = (): void => {
     const active = !['IDLE', 'SETUP', 'PAUSED', 'ENDED'].includes(study.state.phase)
-    const open = active && snapshot.conn === 'connected' && (checkinMicOpen || pushToTalkOpen)
+    const open = active && snapshot.conn === 'connected' && !snapshot.settings.quietMode
+      && (checkinMicOpen || pushToTalkOpen)
     live.setMicOpen(open)
     snapshot = { ...snapshot, micOpen: open }
   }
@@ -147,7 +150,12 @@ export function registerScaffoldIpc(
     startLive: (context) => live.start({ ...context,
       habitProfile: store.adaptiveGrace && store.geminiGrace && !snapshot.settings.demoMode ? store.habits.profile : undefined,
     }), stopLive: () => live.stop(),
-    sendTurn: (turn) => { if (snapshot.conn !== 'degraded') live.sendTurn(turn) }, setMicOpen: (open) => {
+    sendTurn: (turn) => {
+      if (snapshot.conn !== 'degraded'
+        && !(snapshot.settings.quietMode && (turn.tag === 'SESSION_START' || turn.tag === 'NUDGE'))) {
+        live.sendTurn(turn)
+      }
+    }, setMicOpen: (open) => {
       checkinMicOpen = open
       syncMic()
       publish()
@@ -156,7 +164,9 @@ export function registerScaffoldIpc(
     setCaptureRunning: (running) => perception.setCaptureRunning(running),
     showNudge: (show) => {
       nudgeVisible = show
-      if (show && snapshot.conn === 'degraded') getWindows()?.media.webContents.send(IPC.audioChime, {})
+      if (show && (snapshot.settings.quietMode || snapshot.conn === 'degraded')) {
+        getWindows()?.media.webContents.send(IPC.audioChime, { cue: 'nudge' })
+      }
       publish()
     },
     focusTask: (window) => actions?.focusTask(window) ?? returns.focus(window),
@@ -179,6 +189,7 @@ export function registerScaffoldIpc(
         `session-note-${++noteSerial}`, text, document.taskWindow ?? study.state.taskWindow,
         screen.getPrimaryDisplay().bounds, Date.now(), lineAnchor,
       )]
+      if (snapshot.settings.quietMode) getWindows()?.media.webContents.send(IPC.audioChime, { cue: 'return' })
       publish()
     },
     allowWindow: async (window) => {
@@ -318,7 +329,9 @@ export function registerScaffoldIpc(
     publish, log,
   })
   const store = new AppStore(join(app.getPath('userData'), 'state.json'), (message) => log(message))
-  snapshot = { ...snapshot, settings: { ...snapshot.settings, theme: store.theme } }
+  snapshot = { ...snapshot, settings: { ...snapshot.settings, theme: store.theme,
+    quietMode: store.quietMode } }
+  live.setQuietMode(store.quietMode)
   const initialControl = getWindows()?.control
   if (initialControl) setControlTheme(initialControl, store.theme)
   snapshot = { ...snapshot, settings: {
@@ -469,14 +482,28 @@ export function registerScaffoldIpc(
   handle(IPC.sessionPauseToggle, EmptySchema, togglePause)
   handle(IPC.sessionLockWindow, EmptySchema, () => perception.lockWindow())
   handle(IPC.settingsSet, IpcSchemas[IPC.settingsSet], async (settings) => {
+    const previousQuietMode = snapshot.settings.quietMode
+    if (settings.quietMode === true && !previousQuietMode) live.setQuietMode(true)
+    try {
+      if (settings.quietMode !== undefined) await store.saveQuietMode(settings.quietMode)
+      if (settings.adaptiveGrace !== undefined) await store.setAdaptiveGrace(settings.adaptiveGrace)
+      if (settings.geminiGrace !== undefined) await store.setGeminiGrace(settings.geminiGrace)
+      if (settings.theme !== undefined) await store.saveTheme(settings.theme)
+    } catch (error) {
+      live.setQuietMode(previousQuietMode)
+      syncMic()
+      throw error
+    }
     habitReviewer.cancel()
     habitEpisode = undefined
-    if (settings.adaptiveGrace !== undefined) await store.setAdaptiveGrace(settings.adaptiveGrace)
-    if (settings.geminiGrace !== undefined) await store.setGeminiGrace(settings.geminiGrace)
     const next = { ...snapshot.settings, ...settings,
       ...(settings.demoMode === true ? { showHud: true } : {}) }
-    if (settings.theme !== undefined) await store.saveTheme(settings.theme)
     snapshot = { ...snapshot, settings: next }
+    if (settings.quietMode !== undefined) {
+      if (next.quietMode) pushToTalkOpen = false
+      live.setQuietMode(next.quietMode)
+      syncMic()
+    }
     const control = getWindows()?.control
     if (control && settings.theme !== undefined) setControlTheme(control, next.theme)
     if (settings.demoMode !== undefined) {
@@ -555,7 +582,8 @@ export function registerScaffoldIpc(
           && snapshot.overlayPreview !== 'hidden') {
           previewOverlay = applyPreviewAction(previewOverlay, action, Date.now())
           const previews: Record<OverlayAction['kind'], OverlayPreview> = {
-            'take-me-back': 'note', snooze: 'snoozed', allow: 'focused', pause: 'paused', resume: 'focused',
+            'take-me-back': 'note', 'guide-me': 'guide', snooze: 'snoozed', allow: 'focused',
+            pause: 'paused', resume: 'focused',
             'dismiss-note': snapshot.overlayPreview ?? 'hidden',
           }
           snapshot = { ...snapshot, overlayPreview: previews[action.kind], stats: {
@@ -570,6 +598,7 @@ export function registerScaffoldIpc(
           return
         }
         const event = action.kind === 'take-me-back' ? { type: 'RETURN_REQUEST' as const, mode: 'focused' as const }
+          : action.kind === 'guide-me' ? { type: 'RETURN_REQUEST' as const, mode: 'guided' as const }
           : action.kind === 'snooze' ? { type: 'SNOOZE' as const, minutes: DEFAULTS.snoozeDefaultMin }
             : action.kind === 'allow' ? { type: 'ALLOW_CURRENT' as const }
               : action.kind === 'pause' ? { type: 'PAUSE' as const }
@@ -595,6 +624,7 @@ export function registerScaffoldIpc(
         return { ok: false, error: 'Start or resume a study session to use push-to-talk.' }
       }
       if (snapshot.conn !== 'connected') return { ok: false, error: 'Voice is unavailable while offline.' }
+      if (snapshot.settings.quietMode) return { ok: false, error: 'Turn off Quiet Mode to use the microphone.' }
       pushToTalkOpen = !pushToTalkOpen
       syncMic()
       publish()

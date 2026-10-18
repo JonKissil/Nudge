@@ -85,12 +85,14 @@ export class AudioPlayer {
     return queued
   }
 
-  async chime(): Promise<void> {
+  async chime(cue: 'nudge' | 'return'): Promise<void> {
     const context = this.context ?? new AudioContext({ sampleRate: 24_000 })
     this.context = context
     await context.resume()
     const start = context.currentTime
-    for (const [offset, frequency] of [[0, 659], [0.13, 880]] as const) {
+    const notes: ReadonlyArray<readonly [number, number]> = cue === 'nudge'
+      ? [[0, 659], [0.13, 880]] : [[0, 880], [0.12, 1175]]
+    for (const [offset, frequency] of notes) {
       const oscillator = context.createOscillator()
       const volume = context.createGain()
       oscillator.type = 'sine'
