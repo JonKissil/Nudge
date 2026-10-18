@@ -27,6 +27,12 @@ export class AppStore {
 
   get allowList(): readonly AllowListEntry[] { return this.state.allowList }
   get theme(): Theme { return this.state.theme ?? 'minimalist' }
+  get quietMode(): boolean { return this.state.quietMode ?? false }
+
+  saveQuietMode(enabled: boolean): Promise<void> {
+    return this.update((state) => state.quietMode === enabled ? state : { ...state, quietMode: enabled },
+      'Quiet Mode could not be saved. Please try again.')
+  }
 
   saveTheme(theme: Theme): Promise<void> {
     return this.update((state) => state.theme === theme ? state : { ...state, theme },

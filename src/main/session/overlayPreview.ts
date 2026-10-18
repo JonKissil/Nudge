@@ -38,5 +38,6 @@ export function applyPreviewAction(state: OverlayState, action: OverlayAction, n
       pill: { state: 'SNOOZED', offline: state.pill.offline, snoozeUntil: now + 300_000 }, notes: state.notes,
     }
     case 'take-me-back': return createOverlayPreview('note', now)
+    case 'guide-me': return createOverlayPreview('guide', now)
   }
 }

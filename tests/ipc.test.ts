@@ -37,6 +37,7 @@ describe('IPC boundaries', () => {
     const schema = IpcSchemas[IPC.overlayAction]
     expect(schema.safeParse({ kind: 'dismiss-note' }).success).toBe(false)
     expect(schema.safeParse({ kind: 'dismiss-note', id: 'note-1' }).success).toBe(true)
+    expect(schema.safeParse({ kind: 'guide-me' }).success).toBe(true)
     expect(schema.safeParse({ kind: 'execute-code' }).success).toBe(false)
   })
 
@@ -57,6 +58,11 @@ describe('IPC boundaries', () => {
     }
     expect(IpcSchemas[IPC.settingsSet].safeParse({ theme: 'unknown' }).success).toBe(false)
     expect(IpcSchemas[IPC.settingsSet].parse({ showHud: true })).toEqual({ showHud: true })
+    expect(IpcSchemas[IPC.settingsSet].parse({ quietMode: true })).toEqual({ quietMode: true })
+    expect(IpcSchemas[IPC.settingsSet].safeParse({ quietMode: 'yes' }).success).toBe(false)
+    expect(IpcSchemas[IPC.audioChime].safeParse({ cue: 'nudge' }).success).toBe(true)
+    expect(IpcSchemas[IPC.audioChime].safeParse({ cue: 'return' }).success).toBe(true)
+    expect(IpcSchemas[IPC.audioChime].safeParse({ cue: 'speech' }).success).toBe(false)
     expect(IpcSchemas[IPC.settingsSet].safeParse({ adaptiveGrace: false }).success).toBe(true)
     expect(IpcSchemas[IPC.settingsSet].safeParse({ geminiGrace: false }).success).toBe(true)
     expect(IpcSchemas[IPC.graceFeedback].safeParse({ preference: 'sooner' }).success).toBe(true)
@@ -76,7 +82,7 @@ describe('IPC boundaries', () => {
   it('rejects unknown states and unbounded transition history in snapshots', () => {
     const snapshot = {
       state: 'IDLE', conn: 'disconnected', task: '', minutes: 30, language: 'en',
-      settings: { demoMode: false, showHud: false },
+      settings: { demoMode: false, showHud: false, quietMode: false },
       stats: { framesPerMinute: 0, resumptionHandleAgeMs: null, transitions: [], logs: [] },
     }
     expect(SessionSnapshotSchema.safeParse(snapshot).success).toBe(true)

@@ -42,8 +42,13 @@ Disable Gemini reviews to keep the local percentile algorithm; disable learning 
 **Pause session** and **End session** are available in the control window; the overlay offers one-click
 actions during a check-in. The microphone stays off except during a check-in or push-to-talk.
 
-Keyboard shortcuts: `⌘⇧Space` toggles push-to-talk, `⌘⇧P` pauses or resumes, and `⌘⇧D` toggles the live
-status display.
+Turn on **Settings → Quiet Mode** before or during a session for chimes and on-screen prompts without
+spoken replies. It closes the microphone, stops any speech already playing, and saves your choice for
+future sessions. The check-in card still offers **Take me back**, **Show me how**, **5 more min**, and
+**This is for my task**. A second chime accompanies the next-step note when you return.
+
+Keyboard shortcuts: `⌘⇧Space` toggles push-to-talk when Quiet Mode is off, `⌘⇧P` pauses or resumes,
+and `⌘⇧D` toggles the live status display.
 
 On macOS, Nudge lives in the menu bar. Its **n** icon glows green while a session is running (including
 snooze) and becomes monochrome when paused or stopped. Click it to show the setup window, pause/resume,

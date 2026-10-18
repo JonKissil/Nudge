@@ -35,7 +35,7 @@ export const IpcSchemas = {
   [IPC.audioPlay]: z.strictObject({ pcm24Base64: base64 }),
   [IPC.audioFlush]: EmptySchema,
   [IPC.audioReset]: EmptySchema,
-  [IPC.audioChime]: EmptySchema,
+  [IPC.audioChime]: z.strictObject({ cue: z.enum(['nudge', 'return']) }),
   [IPC.frameRequestFull]: EmptySchema,
   [IPC.captureSet]: z.strictObject({ running: z.boolean() }),
   [IPC.mediaReady]: EmptySchema,

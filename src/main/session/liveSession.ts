@@ -22,6 +22,7 @@ export class LiveSessionBridge {
   private sessionId = 0
   private startIntent = 0
   private micOpen = false
+  private quietMode = false
   private stopping?: Promise<void>
   private readonly unsubscribe: () => void
 
@@ -68,11 +69,21 @@ export class LiveSessionBridge {
   sendMicChunk(pcm16Base64: string): void { if (this.active && this.micOpen) this.client.sendAudio(pcm16Base64) }
   setCheckinActive(active: boolean): void { this.client.setCheckinActive(active) }
 
+  setQuietMode(enabled: boolean): void {
+    if (this.quietMode === enabled) return
+    this.quietMode = enabled
+    if (enabled) {
+      this.setMicOpen(false)
+      this.sinks.flushAudio()
+    }
+  }
+
   setMicOpen(open: boolean): void {
-    if (!this.active || this.micOpen === open) return
-    this.micOpen = open
-    this.sinks.micSet(open)
-    if (!open) this.client.endAudioStream()
+    const allowed = open && !this.quietMode
+    if (!this.active || this.micOpen === allowed) return
+    this.micOpen = allowed
+    this.sinks.micSet(allowed)
+    if (!allowed) this.client.endAudioStream()
   }
 
   stop(): Promise<void> {
@@ -125,7 +136,7 @@ export class LiveSessionBridge {
           if (this.active && this.sessionId === sessionId) this.client.sendToolResponse(response)
         }
         break
-      case 'audio': this.sinks.playAudio(event.pcm24Base64); break
+      case 'audio': if (!this.quietMode) this.sinks.playAudio(event.pcm24Base64); break
       case 'transcription': this.sinks.caption(event.text); break
       case 'user-transcription': this.sinks.userSpeech(event.text); break
       case 'interrupted': this.sinks.flushAudio(); this.sinks.caption(''); break

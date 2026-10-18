@@ -11,6 +11,8 @@ export function NudgeCard({ nudge, onAction, onInteractive }: OverlayControls & 
     <div className={styles.actions}>
       <OverlayButton label="Take me back" onInteractive={onInteractive}
         onClick={() => onAction({ kind: 'take-me-back' })}>Take me back <span aria-hidden="true">↗</span></OverlayButton>
+      <OverlayButton label="Show me how" onInteractive={onInteractive} secondary
+        onClick={() => onAction({ kind: 'guide-me' })}>Show me how</OverlayButton>
       <OverlayButton label="5 more min" onInteractive={onInteractive} secondary
         onClick={() => onAction({ kind: 'snooze' })}>5 more min</OverlayButton>
       <OverlayButton label="This is for my task" onInteractive={onInteractive} secondary

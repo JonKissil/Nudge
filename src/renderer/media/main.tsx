@@ -18,7 +18,7 @@ export function Media() {
       api.onAudioPlay(({ pcm24Base64 }) => { void player.play(pcm24Base64).catch(() => console.error('Audio playback unavailable')) }),
       api.onAudioFlush(() => player.flush()),
       api.onAudioReset(() => player.close()),
-      api.onAudioChime(() => { void player.chime().catch(() => console.error('Chime unavailable')) }),
+      api.onAudioChime(({ cue }) => { void player.chime(cue).catch(() => console.error('Chime unavailable')) }),
       api.onCaptureSet(({ running }) => capture.setRunning(running)),
       api.onFullFrameRequest(() => { void capture.sendFullFrame() }),
     ]

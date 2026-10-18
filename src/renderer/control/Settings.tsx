@@ -59,6 +59,14 @@ export function Settings({ api, snapshot, busy, active, language, setLanguage, c
           </option>)}
         </select>
       </section>
+      <section className={styles.card} aria-label="Quiet Mode">
+        <label><input type="checkbox" disabled={!snapshot || busy}
+          checked={snapshot?.settings.quietMode ?? false}
+          onChange={(event) => { void command(() => api.setSettings({ quietMode: event.target.checked }),
+            'Could not change Quiet Mode.') }} /> Quiet Mode</label>
+        <p>Chimes and on-screen prompts replace spoken replies. The microphone stays off;
+          use the check-in buttons to return, snooze, or allow a page.</p>
+      </section>
       <section className={styles.card} aria-label="Adaptive grace period">
         <label><input type="checkbox" disabled={!snapshot || busy || snapshot.settings.demoMode}
           checked={snapshot?.settings.adaptiveGrace !== false}
@@ -137,7 +145,7 @@ export function Settings({ api, snapshot, busy, active, language, setLanguage, c
         <strong>Keyboard shortcuts</strong>
         <dl>
           <div><dt>Pause / resume</dt><dd>⌘⇧P</dd></div>
-          <div><dt>Toggle microphone</dt><dd>⌘⇧Space</dd></div>
+          {!snapshot?.settings.quietMode && <div><dt>Toggle microphone</dt><dd>⌘⇧Space</dd></div>}
           <div><dt>Toggle live status</dt><dd>⌘⇧D</dd></div>
         </dl>
       </section>

@@ -185,6 +185,10 @@ completed components; M8 has a draft deck and script.
 ## Stretch (only after M7 passes)
 
 - [x] Language support
+- [x] Quiet Mode: saved Settings toggle, immediate model-audio cutoff, mic-off check-ins, nudge/return
+  chimes, captions, and a button for guided return (typecheck, automated tests, lint, build, and dev launch verified)
+- [ ] Quiet Mode listening pass on the demo Mac: confirm no speech during a live nudge or re-entry,
+  and confirm both chimes are audible at a gentle volume.
 - [ ] Custom theme support from uploaded jpg or png file (also font support)
 - [ ] Several included base themes
 - [ ] Session recap (focused minutes, returns, steps completed; framed as wins)
